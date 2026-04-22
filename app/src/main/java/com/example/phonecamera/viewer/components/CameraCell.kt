@@ -33,6 +33,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.rtsp.RtspMediaSource
 import androidx.media3.exoplayer.video.VideoFrameMetadataListener
+import android.view.LayoutInflater
 import androidx.media3.ui.PlayerView
 import com.example.phonecamera.data.CameraConfig
 import com.example.phonecamera.ui.theme.*
@@ -53,6 +54,8 @@ fun CameraCell(
     useTcp: Boolean,
     isAudioEnabled: Boolean,
     onToggleAudio: () -> Unit,
+    onFullscreenClick: () -> Unit,
+    isFullscreen: Boolean = false,
     onAddClick: () -> Unit,
     onEditClick: () -> Unit,
     onRetryClick: () -> Unit,
@@ -75,10 +78,13 @@ fun CameraCell(
         val shouldRunPlayer = config != null &&
                 (playerState is PlayerState.Loading || playerState is PlayerState.Playing)
 
+        val attemptId = (playerState as? PlayerState.Loading)?.attemptId ?: 0L
+
         val exoPlayer: ExoPlayer? = if (shouldRunPlayer && config != null) {
             rememberLowLatencyExoPlayer(
                 rtspUrl = config.toRtspUrl(),
                 useTcp = useTcp,
+                attemptId = attemptId,
                 onPlayerReady = {
                     Log.i(TAG, "slot=$slotIndex ▶ onPlayerReady")
                     onPlayerReady()
@@ -92,6 +98,14 @@ fun CameraCell(
 
         LaunchedEffect(exoPlayer, isAudioEnabled) {
             exoPlayer?.volume = if (isAudioEnabled) 1f else 0f
+        }
+
+        // Connection Timeout Logic
+        LaunchedEffect(playerState) {
+            if (playerState is PlayerState.Loading) {
+                delay(10000L) // 10 seconds
+                onPlayerError("Hết thời gian chờ kết nối (10s)")
+            }
         }
 
         when {
@@ -112,6 +126,9 @@ fun CameraCell(
                     showLoadingOverlay = playerState is PlayerState.Loading,
                     isAudioEnabled = isAudioEnabled,
                     onToggleAudio = onToggleAudio,
+                    onReload = onRetryClick,
+                    onFullscreenClick = onFullscreenClick,
+                    isFullscreen = isFullscreen,
                     onEdit = onEditClick
                 )
             }
@@ -138,13 +155,14 @@ fun CameraCell(
 private fun rememberLowLatencyExoPlayer(
     rtspUrl: String,
     useTcp: Boolean,
+    attemptId: Long,
     onPlayerReady: () -> Unit,
     onPlayerError: (String) -> Unit
 ): ExoPlayer? {
     val context = LocalContext.current
     var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
 
-    DisposableEffect(rtspUrl, useTcp) {
+    DisposableEffect(rtspUrl, useTcp, attemptId) {
         var player: ExoPlayer? = null
         val job = CoroutineScope(Dispatchers.Main).launch {
             Log.d(TAG, "Waiting 500ms before connecting to $rtspUrl (TCP=$useTcp)")
@@ -229,6 +247,9 @@ private fun ActivePlayerCell(
     showLoadingOverlay: Boolean,
     isAudioEnabled: Boolean,
     onToggleAudio: () -> Unit,
+    onReload: () -> Unit,
+    onFullscreenClick: () -> Unit,
+    isFullscreen: Boolean,
     onEdit: () -> Unit
 ) {
     // ── Real-time FPS counter ──────────────────────────────────────────────
@@ -264,9 +285,9 @@ private fun ActivePlayerCell(
         // PlayerView always rendered — ExoPlayer delivers frames continuously
         AndroidView(
             factory = { ctx ->
-                PlayerView(ctx).apply {
+                val view = LayoutInflater.from(ctx).inflate(com.example.phonecamera.R.layout.view_exo_player, null) as PlayerView
+                view.apply {
                     player = exoPlayer
-                    useController = false
                 }
             },
             modifier = Modifier.fillMaxSize(),
@@ -338,6 +359,32 @@ private fun ActivePlayerCell(
                 )
             }
 
+            // Reload toggle button
+            IconButton(
+                onClick = onReload,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = "Tải lại camera",
+                    tint = CyanNeon,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            // Fullscreen toggle button
+            IconButton(
+                onClick = onFullscreenClick,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
+                    contentDescription = "Toàn màn hình",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
             IconButton(onClick = onEdit, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Icons.Outlined.Edit, "Sửa camera",
@@ -356,16 +403,16 @@ private fun ActivePlayerCell(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(NavyCard.copy(alpha = 0.85f)),
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)),
                 verticalArrangement = Arrangement.Center
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(28.dp),
-                    color = CyanNeon, strokeWidth = 2.dp
+                    color = MaterialTheme.colorScheme.primary, strokeWidth = 2.dp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Đang kết nối...", style = MaterialTheme.typography.bodySmall,
-                    color = TextHint, fontSize = 10.sp)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
             }
         }
     }
@@ -382,14 +429,14 @@ private fun EmptyCell(onAddClick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier.size(40.dp)
-                .background(CyanNeon.copy(alpha = 0.1f), RoundedCornerShape(50)),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(50)),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Outlined.AddCircleOutline, "Thêm camera",
-                tint = CyanNeon.copy(alpha = 0.7f), modifier = Modifier.size(22.dp))
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(22.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Thêm Camera", style = MaterialTheme.typography.labelSmall, color = TextHint)
+        Text("Thêm Camera", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

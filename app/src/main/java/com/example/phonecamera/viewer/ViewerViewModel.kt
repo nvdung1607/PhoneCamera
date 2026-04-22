@@ -1,7 +1,7 @@
 package com.example.phonecamera.viewer
 
 import android.app.Application
-import android.util.Log
+import com.example.phonecamera.utils.AppLog
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.phonecamera.data.CameraConfig
@@ -12,11 +12,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-private const val TAG = "RTSPGuard.Viewer"
+
 
 sealed class PlayerState {
     data object Idle : PlayerState()
-    data object Loading : PlayerState()
+    data class Loading(val attemptId: Long = System.currentTimeMillis()) : PlayerState()
     data object Playing : PlayerState()
     data class Error(val message: String) : PlayerState()
 }
@@ -49,10 +49,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
 
     init {
-        Log.d(TAG, "ViewerViewModel init")
+        AppLog.d("ViewerViewModel init")
         viewModelScope.launch {
             repository.camerasFlow.collect { savedCameras ->
-                Log.d(TAG, "Loaded ${savedCameras.size} cameras from DataStore: ${savedCameras.map { "slot${it.id}=${it.host}:${it.port}" }}")
+                AppLog.d("Loaded ${savedCameras.size} cameras from DataStore: ${savedCameras.map { "slot${it.id}=${it.host}:${it.port}" }}")
                 val slots = MutableList<CameraConfig?>(4) { null }
                 savedCameras.forEach { cam -> if (cam.id in 0..3) slots[cam.id] = cam }
                 _uiState.update { current ->
@@ -63,8 +63,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         if (cam != null) {
                             val existingState = newStates[i]
                             if (existingState == null || existingState is PlayerState.Idle) {
-                                Log.d(TAG, "Auto-triggering Loading for slot $i (${cam.host}:${cam.port})")
-                                newStates[i] = PlayerState.Loading
+                                AppLog.d("Auto-triggering Loading for slot $i (${cam.host}:${cam.port})")
+                                newStates[i] = PlayerState.Loading()
                             }
                         }
                     }
@@ -79,16 +79,16 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun startDiscovery() {
         if (_uiState.value.isScanning) {
-            Log.d(TAG, "startDiscovery() skipped — already scanning")
+            AppLog.d("startDiscovery() skipped — already scanning")
             return
         }
-        Log.d(TAG, "startDiscovery() — starting NSD scan for _rtspguard._tcp")
+        AppLog.d("startDiscovery() — starting NSD scan for _rtspguard._tcp")
         _uiState.update { it.copy(isScanning = true) }
 
         nsdHelper.discoverServices(
             onFound = { camera ->
                 viewModelScope.launch(Dispatchers.Main) {
-                    Log.i(TAG, "✅ Camera found: ${camera.displayName} @ ${camera.host}:${camera.port}")
+                    AppLog.i("✅ Camera found: ${camera.displayName} @ ${camera.host}:${camera.port}")
                     _uiState.update { state ->
                         val updated = state.discoveredCameras.toMutableList()
                         val idx = updated.indexOfFirst { it.serviceId == camera.serviceId }
@@ -100,8 +100,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
                         val updatedCameras = state.cameras.toMutableList()
                         state.cameras.forEachIndexed { i, cam ->
                             if (cam != null && cam.name == camera.displayName) {
-                                Log.i(TAG, "Auto-reconnecting slot $i for ${camera.displayName} at ${camera.host}:${camera.port}")
-                                newStates[i] = PlayerState.Loading
+                                AppLog.i("Auto-reconnecting slot $i for ${camera.displayName} at ${camera.host}:${camera.port}")
+                                newStates[i] = PlayerState.Loading()
                                 
                                 // Update IP/Port in case it changed
                                 if (cam.host != camera.host || cam.port != camera.port) {
@@ -123,17 +123,17 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             },
             onLost = { serviceId ->
                 viewModelScope.launch(Dispatchers.Main) {
-                    Log.i(TAG, "❌ Camera lost: serviceId=$serviceId")
+                    AppLog.i("❌ Camera lost: serviceId=$serviceId")
                     _uiState.update { state ->
                         val lostCamera = state.discoveredCameras.find { it.serviceId == serviceId }
                         val newStates = state.playerStates.toMutableMap()
 
                         if (lostCamera != null) {
-                            Log.w(TAG, "Camera offline: ${lostCamera.displayName} @ ${lostCamera.host}:${lostCamera.port}")
+                            AppLog.w("Camera offline: ${lostCamera.displayName} @ ${lostCamera.host}:${lostCamera.port}")
                             // Find all slots streaming from this camera and mark them as Offline instead of deleting
                             state.cameras.forEachIndexed { i, cam ->
                                 if (cam != null && cam.name == lostCamera.displayName) {
-                                    Log.w(TAG, "Marking slot $i as Offline (was streaming from ${lostCamera.host})")
+                                    AppLog.w("Marking slot $i as Offline (was streaming from ${lostCamera.host})")
                                     newStates[i] = PlayerState.Error("Camera đã mất kết nối")
                                 }
                             }
@@ -149,7 +149,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun stopDiscovery() {
-        Log.d(TAG, "stopDiscovery()")
+        AppLog.d("stopDiscovery()")
         nsdHelper.stopDiscovery()
         _uiState.update { it.copy(isScanning = false) }
     }
@@ -157,10 +157,10 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun addDiscoveredCamera(camera: DiscoveredCamera, targetSlot: Int? = null) {
         val slot = targetSlot ?: _uiState.value.firstEmptySlot
         if (slot == null) {
-            Log.w(TAG, "addDiscoveredCamera: no empty slot available")
+            AppLog.w("addDiscoveredCamera: no empty slot available")
             return
         }
-        Log.d(TAG, "addDiscoveredCamera: ${camera.displayName} → slot $slot (${camera.rtspUrl})")
+        AppLog.d("addDiscoveredCamera: ${camera.displayName} → slot $slot (${camera.rtspUrl})")
         val config = CameraConfig(
             id = slot,
             name = camera.displayName,
@@ -178,15 +178,15 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     // ─── Camera CRUD ──────────────────────────────────────────────────────
 
     fun saveCamera(config: CameraConfig) {
-        Log.d(TAG, "saveCamera: slot=${config.id} name='${config.name}' url=${config.toRtspUrl()}")
+        AppLog.d("saveCamera: slot=${config.id} name='${config.name}' url=${config.toRtspUrl()}")
         viewModelScope.launch {
             repository.saveCamera(config)
-            setPlayerState(config.id, PlayerState.Loading)
+            setPlayerState(config.id, PlayerState.Loading())
         }
     }
 
     fun deleteCamera(id: Int) {
-        Log.d(TAG, "deleteCamera: slot=$id")
+        AppLog.d("deleteCamera: slot=$id")
         viewModelScope.launch {
             repository.deleteCamera(id)
             setPlayerState(id, PlayerState.Idle)
@@ -194,32 +194,32 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun onPlayerReady(index: Int) {
-        Log.i(TAG, "▶ Player slot $index → Playing")
+        AppLog.i("▶ Player slot $index → Playing")
         setPlayerState(index, PlayerState.Playing)
     }
 
     fun onPlayerError(index: Int, errorMsg: String) {
-        Log.e(TAG, "✗ Player slot $index error: $errorMsg")
+        AppLog.e("✗ Player slot $index error: $errorMsg")
         setPlayerState(index, PlayerState.Error(errorMsg))
     }
 
     fun retryCamera(index: Int) {
         val cam = _uiState.value.cameras.getOrNull(index) ?: return
-        Log.i(TAG, "Retrying camera in slot $index (${cam.host}:${cam.port})")
+        AppLog.i("Retrying camera in slot $index (${cam.host}:${cam.port})")
         val newStates = _uiState.value.playerStates.toMutableMap()
-        newStates[index] = PlayerState.Loading
+        newStates[index] = PlayerState.Loading()
         _uiState.value = _uiState.value.copy(playerStates = newStates)
     }
 
     fun toggleTcp() {
         _uiState.update { state ->
             val isTcp = !state.useTcp
-            Log.d(TAG, "Toggling TCP mode to: $isTcp. Reloading all active cameras.")
+            AppLog.d("Toggling TCP mode to: $isTcp. Reloading all active cameras.")
             val newStates = state.playerStates.toMutableMap()
             // Force reload by setting all active players back to Loading
             state.cameras.forEachIndexed { i, cam ->
                 if (cam != null && newStates[i] is PlayerState.Playing) {
-                    newStates[i] = PlayerState.Loading
+                    newStates[i] = PlayerState.Loading()
                 }
             }
             state.copy(useTcp = isTcp, playerStates = newStates)
@@ -229,7 +229,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun toggleAudio(slotIndex: Int) {
         _uiState.update { state ->
             val newAudioSlot = if (state.selectedAudioSlot == slotIndex) null else slotIndex
-            Log.d(TAG, "Toggling audio: slot $slotIndex. New selected audio slot: $newAudioSlot")
+            AppLog.d("Toggling audio: slot $slotIndex. New selected audio slot: $newAudioSlot")
             state.copy(selectedAudioSlot = newAudioSlot)
         }
     }
@@ -237,14 +237,14 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun dismissSnackbar() { _uiState.update { it.copy(snackbarMessage = null) } }
 
     private fun setPlayerState(index: Int, state: PlayerState) {
-        Log.v(TAG, "setPlayerState: slot=$index → $state")
+        AppLog.d("setPlayerState: slot=$index → $state")
         _uiState.update { current ->
             current.copy(playerStates = current.playerStates.toMutableMap().also { it[index] = state })
         }
     }
 
     override fun onCleared() {
-        Log.d(TAG, "ViewerViewModel onCleared — stopping NSD")
+        AppLog.d("ViewerViewModel onCleared — stopping NSD")
         nsdHelper.stopAll()
         super.onCleared()
     }

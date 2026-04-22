@@ -81,7 +81,11 @@ fun HomeScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(NavyDeep, NavyMid, NavyDeep),
+                    colors = listOf(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        MaterialTheme.colorScheme.background
+                    ),
                     startY = 0f,
                     endY = Float.POSITIVE_INFINITY
                 )
@@ -93,7 +97,7 @@ fun HomeScreen(
                 .fillMaxWidth()
                 .height(2.dp)
                 .background(
-                    Brush.horizontalGradient(listOf(Color.Transparent, CyanNeon, Color.Transparent))
+                    Brush.horizontalGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.primary, Color.Transparent))
                 )
         )
 
@@ -135,7 +139,7 @@ fun HomeScreen(
                 icon = Icons.Outlined.Videocam,
                 title = "Máy Quay (Camera)",
                 description = "Biến điện thoại này thành camera an ninh phát luồng RTSP qua mạng nội bộ",
-                accentColor = CyanNeon,
+                accentColor = MaterialTheme.colorScheme.primary,
                 enabled = uiState.allStreamerPermissionsGranted,
                 onClick = onNavigateToStreamer
             )
@@ -146,7 +150,7 @@ fun HomeScreen(
                 icon = Icons.Outlined.Monitor,
                 title = "Màn Hình Xem (Monitor)",
                 description = "Xem đồng thời tối đa 4 camera từ các điện thoại khác trong mạng",
-                accentColor = GreenOnline,
+                accentColor = MaterialTheme.colorScheme.tertiary,
                 enabled = true,
                 onClick = onNavigateToViewer
             )
@@ -157,7 +161,7 @@ fun HomeScreen(
             Text(
                 text = "Phone Camera v1.0",
                 style = MaterialTheme.typography.labelSmall,
-                color = TextHint,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
         }
@@ -184,20 +188,20 @@ private fun AppHeader() {
                 modifier = Modifier
                     .size(88.dp)
                     .scale(pulse)
-                    .background(CyanGlow, RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), RoundedCornerShape(50))
             )
             // Icon background
             Box(
                 modifier = Modifier
                     .size(72.dp)
-                    .background(NavyCard, RoundedCornerShape(20.dp))
-                    .border(1.dp, CyanNeon.copy(alpha = 0.5f), RoundedCornerShape(20.dp)),
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(20.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.Shield,
                     contentDescription = null,
-                    tint = CyanNeon,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(36.dp)
                 )
             }
@@ -208,7 +212,7 @@ private fun AppHeader() {
         Text(
             text = "Phone Camera",
             style = MaterialTheme.typography.displayMedium,
-            color = TextPrimary,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
         )
@@ -216,7 +220,7 @@ private fun AppHeader() {
         Text(
             text = "Hệ thống camera an ninh nội bộ",
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
     }
@@ -232,15 +236,15 @@ private fun PermissionBanner(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(AmberWarning.copy(alpha = 0.12f))
-            .border(1.dp, AmberWarning.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f))
+            .border(1.dp, MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = Icons.Filled.Warning,
             contentDescription = null,
-            tint = AmberWarning,
+            tint = MaterialTheme.colorScheme.error,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(10.dp))
@@ -248,12 +252,12 @@ private fun PermissionBanner(
             Text(
                 text = "Cần quyền Camera & Microphone",
                 style = MaterialTheme.typography.labelLarge,
-                color = AmberWarning
+                color = MaterialTheme.colorScheme.error
             )
             Text(
                 text = "Cấp quyền để sử dụng chức năng phát Camera",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
@@ -262,7 +266,7 @@ private fun PermissionBanner(
         ) {
             Text(
                 text = if (showSettingsButton) "Cài đặt" else "Cấp quyền",
-                color = AmberWarning
+                color = MaterialTheme.colorScheme.error
             )
         }
     }
@@ -290,12 +294,12 @@ private fun RoleCard(
             .fillMaxWidth()
             .scale(scale)
             .clip(RoundedCornerShape(16.dp))
-            .background(NavyCard)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(
                 width = 1.dp,
                 brush = if (enabled) Brush.linearGradient(
                     listOf(accentColor.copy(alpha = 0.6f), accentColor.copy(alpha = 0.1f))
-                ) else Brush.linearGradient(listOf(DividerColor, DividerColor)),
+                ) else Brush.linearGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant)),
                 shape = RoundedCornerShape(16.dp)
             )
             .clickable(enabled = enabled) {
@@ -324,7 +328,7 @@ private fun RoleCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary.copy(alpha = contentAlpha),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = contentAlpha),
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.height(4.dp))

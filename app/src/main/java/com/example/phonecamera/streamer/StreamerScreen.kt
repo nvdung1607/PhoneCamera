@@ -136,7 +136,7 @@ fun StreamerScreen(
                 }
             }
         },
-        containerColor = NavyDeep
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
             modifier = Modifier
@@ -220,7 +220,7 @@ fun StreamerScreen(
                     // Resolution overlay when not streaming
                     this@Row.AnimatedVisibility(
                         visible = !uiState.isStreaming,
-                        modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
                         enter = fadeIn(),
                         exit = fadeOut()
                     ) {
@@ -272,8 +272,8 @@ fun StreamerScreen(
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = CyanNeon.copy(alpha = 0.2f),
                                         selectedLabelColor = CyanNeon,
-                                        containerColor = NavyCard,
-                                        labelColor = TextSecondary
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
                                         enabled = !uiState.isStreaming,

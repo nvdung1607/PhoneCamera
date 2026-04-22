@@ -10,10 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.material3.MaterialTheme
 import com.example.phonecamera.home.HomeScreen
 import com.example.phonecamera.navigation.Screen
 import com.example.phonecamera.streamer.StreamerScreen
-import com.example.phonecamera.ui.theme.NavyDeep
 import com.example.phonecamera.ui.theme.PhoneCameraTheme
 import com.example.phonecamera.viewer.ViewerScreen
 
@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
             PhoneCameraTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = NavyDeep
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
                     NavHost(

@@ -16,6 +16,9 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.outlined.WifiFind
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -74,6 +77,24 @@ fun ViewerScreen(
     // null = closed, -1 = new, 0..3 = edit slot
     var dialogSlot by remember { mutableStateOf<Int?>(null) }
     var showDiscovery by remember { mutableStateOf(false) }
+    var fullscreenSlot by rememberSaveable { mutableStateOf<Int?>(null) }
+    var wasInGridBeforeFullscreen by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(fullscreenSlot) {
+        if (fullscreenSlot != null) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+        } else {
+            activity?.requestedOrientation = if (wasInGridBeforeFullscreen) {
+                ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+            }
+        }
+    }
+
+    BackHandler(enabled = fullscreenSlot != null) {
+        fullscreenSlot = null
+    }
 
     LaunchedEffect(uiState.snackbarMessage) {
         uiState.snackbarMessage?.let {
@@ -138,7 +159,7 @@ fun ViewerScreen(
                             Icon(Icons.Filled.Fullscreen, "Chế độ lưới ngang", tint = TextPrimary)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = NavyMid)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
                 )
             }
         },
@@ -146,7 +167,10 @@ fun ViewerScreen(
         floatingActionButton = {
             if (isLandscape) {
                 FloatingActionButton(
-                    onClick = { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT },
+                    onClick = { 
+                        if (fullscreenSlot != null) fullscreenSlot = null
+                        else activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT 
+                    },
                     containerColor = NavyCard.copy(alpha = 0.8f),
                     contentColor = CyanNeon
                 ) {
@@ -154,13 +178,31 @@ fun ViewerScreen(
                 }
             }
         },
-        containerColor = NavyDeep
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         val modifier = Modifier
             .fillMaxSize()
             .padding(padding)
 
-        if (isLandscape) {
+        if (fullscreenSlot != null) {
+            val i = fullscreenSlot!!
+            CameraCell(
+                slotIndex = i,
+                config = uiState.cameras.getOrNull(i),
+                playerState = uiState.playerStateFor(i),
+                useTcp = uiState.useTcp,
+                isAudioEnabled = uiState.selectedAudioSlot == i,
+                onToggleAudio = { viewModel.toggleAudio(i) },
+                onFullscreenClick = { fullscreenSlot = null },
+                isFullscreen = true,
+                onAddClick = { dialogSlot = i },
+                onEditClick = { dialogSlot = i },
+                onRetryClick = { viewModel.retryCamera(i) },
+                onPlayerReady = { viewModel.onPlayerReady(i) },
+                onPlayerError = { err -> viewModel.onPlayerError(i, err) },
+                modifier = modifier
+            )
+        } else if (isLandscape) {
             // ─── LANDSCAPE MODE (Non-scrollable 2x2 Grid Centered) ───
             Box(
                 modifier = Modifier
@@ -181,6 +223,11 @@ fun ViewerScreen(
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 0,
                             onToggleAudio = { viewModel.toggleAudio(0) },
+                            onFullscreenClick = { 
+                                wasInGridBeforeFullscreen = isLandscape
+                                fullscreenSlot = 0 
+                            },
+                            isFullscreen = false,
                             onAddClick = { dialogSlot = 0 },
                             onEditClick = { dialogSlot = 0 },
                             onRetryClick = { viewModel.retryCamera(0) },
@@ -195,6 +242,11 @@ fun ViewerScreen(
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 1,
                             onToggleAudio = { viewModel.toggleAudio(1) },
+                            onFullscreenClick = { 
+                                wasInGridBeforeFullscreen = isLandscape
+                                fullscreenSlot = 1 
+                            },
+                            isFullscreen = false,
                             onAddClick = { dialogSlot = 1 },
                             onEditClick = { dialogSlot = 1 },
                             onRetryClick = { viewModel.retryCamera(1) },
@@ -212,6 +264,11 @@ fun ViewerScreen(
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 2,
                             onToggleAudio = { viewModel.toggleAudio(2) },
+                            onFullscreenClick = { 
+                                wasInGridBeforeFullscreen = isLandscape
+                                fullscreenSlot = 2 
+                            },
+                            isFullscreen = false,
                             onAddClick = { dialogSlot = 2 },
                             onEditClick = { dialogSlot = 2 },
                             onRetryClick = { viewModel.retryCamera(2) },
@@ -226,6 +283,11 @@ fun ViewerScreen(
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 3,
                             onToggleAudio = { viewModel.toggleAudio(3) },
+                            onFullscreenClick = { 
+                                wasInGridBeforeFullscreen = isLandscape
+                                fullscreenSlot = 3 
+                            },
+                            isFullscreen = false,
                             onAddClick = { dialogSlot = 3 },
                             onEditClick = { dialogSlot = 3 },
                             onRetryClick = { viewModel.retryCamera(3) },
@@ -238,7 +300,6 @@ fun ViewerScreen(
             }
         } else {
             // ─── PORTRAIT MODE (1-Column List) ───
-            // Only show configured cameras, plus ONE add button if < 4
             val activeSlots = uiState.cameras.withIndex().filter { it.value != null }
             val emptySlotIndex = uiState.cameras.indexOfFirst { it == null }
 
@@ -252,39 +313,58 @@ fun ViewerScreen(
                     val config = indexedValue.value
                     val state = uiState.playerStateFor(index)
 
-                    CameraCell(
-                        slotIndex = index,
-                        config = config,
-                        playerState = state,
-                        useTcp = uiState.useTcp,
-                        isAudioEnabled = uiState.selectedAudioSlot == index,
-                        onToggleAudio = { viewModel.toggleAudio(index) },
-                        onAddClick = { dialogSlot = index },
-                        onEditClick = { dialogSlot = index },
-                        onRetryClick = { viewModel.retryCamera(index) },
-                        onPlayerReady = { viewModel.onPlayerReady(index) },
-                        onPlayerError = { err -> viewModel.onPlayerError(index, err) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f) // Keep cells 16:9 in list
+                            .background(NavyCard, RoundedCornerShape(12.dp))
+                    ) {
+                        CameraCell(
+                            slotIndex = index,
+                            config = config,
+                            playerState = state,
+                            useTcp = uiState.useTcp,
+                            isAudioEnabled = uiState.selectedAudioSlot == index,
+                            onToggleAudio = { viewModel.toggleAudio(index) },
+                            onFullscreenClick = { 
+                                wasInGridBeforeFullscreen = isLandscape
+                                fullscreenSlot = index 
+                            },
+                            isFullscreen = false,
+                            onAddClick = { dialogSlot = index },
+                            onEditClick = { dialogSlot = index },
+                            onRetryClick = { viewModel.retryCamera(index) },
+                            onPlayerReady = { viewModel.onPlayerReady(index) },
+                            onPlayerError = { err -> viewModel.onPlayerError(index, err) },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
 
-                // Show a single Add button at the end if there is an empty slot
-                if (emptySlotIndex >= 0) {
+                if (emptySlotIndex != -1) {
                     item {
-                        CameraCell(
-                            slotIndex = emptySlotIndex,
-                            config = null,
-                            playerState = PlayerState.Idle,
-                            useTcp = uiState.useTcp,
-                            isAudioEnabled = false,
-                            onToggleAudio = {},
-                            onAddClick = { dialogSlot = emptySlotIndex },
-                            onEditClick = {},
-                            onRetryClick = {},
-                            onPlayerReady = {},
-                            onPlayerError = {},
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f)
+                        ) {
+                            CameraCell(
+                                slotIndex = emptySlotIndex,
+                                config = null,
+                                playerState = PlayerState.Idle,
+                                useTcp = uiState.useTcp,
+                                isAudioEnabled = false,
+                                onToggleAudio = {},
+                                onFullscreenClick = {},
+                                isFullscreen = false,
+                                onAddClick = { dialogSlot = emptySlotIndex },
+                                onEditClick = {},
+                                onRetryClick = {},
+                                onPlayerReady = {},
+                                onPlayerError = {},
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
             }

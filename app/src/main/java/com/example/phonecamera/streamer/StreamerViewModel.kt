@@ -169,7 +169,7 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
 
     fun switchCamera() {
         val state = _uiState.value
-        if (state.isStreaming) streamService?.switchCamera()
+        streamService?.switchCamera()
         _uiState.value = state.copy(useFrontCamera = !state.useFrontCamera)
     }
 
