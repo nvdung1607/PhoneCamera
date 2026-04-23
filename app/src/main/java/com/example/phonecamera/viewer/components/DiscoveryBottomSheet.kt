@@ -35,14 +35,14 @@ fun DiscoveryBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = NavyCard,
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = {
             Box(
                 modifier = Modifier
                     .padding(top = 12.dp, bottom = 8.dp)
                     .size(width = 40.dp, height = 4.dp)
-                    .background(DividerColor, RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp))
             )
         }
     ) {
@@ -60,33 +60,33 @@ fun DiscoveryBottomSheet(
                 Icon(
                     imageVector = Icons.Outlined.WifiFind,
                     contentDescription = null,
-                    tint = CyanNeon,
-                    modifier = Modifier.size(22.dp)
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Camera trên mạng LAN",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (isScanning) "Đang tìm kiếm..." else "${discovered.size} camera tìm thấy",
+                        text = if (isScanning) "Đang tìm kiếm thiết bị..." else "Tìm thấy ${discovered.size} thiết bị",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isScanning) CyanNeon else TextSecondary
+                        color = if (isScanning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 if (isScanning) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = CyanNeon,
+                        color = MaterialTheme.colorScheme.primary,
                         strokeWidth = 2.dp
                     )
                 }
             }
 
-            HorizontalDivider(color = DividerColor)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(12.dp))
 
             // ─── Camera list ───
@@ -95,7 +95,7 @@ fun DiscoveryBottomSheet(
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.heightIn(max = 360.dp)
+                    modifier = Modifier.heightIn(max = 400.dp)
                 ) {
                     items(discovered, key = { it.serviceId }) { camera ->
                         val alreadyAdded = camera.rtspUrl in occupiedSlots
@@ -117,73 +117,77 @@ private fun DiscoveredCameraRow(
     alreadyAdded: Boolean,
     onAdd: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(NavySurface, RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        // Camera icon
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .background(
-                    if (alreadyAdded) GreenOnline.copy(alpha = 0.1f)
-                    else CyanNeon.copy(alpha = 0.1f),
-                    RoundedCornerShape(10.dp)
-                ),
-            contentAlignment = Alignment.Center
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Filled.Videocam,
-                contentDescription = null,
-                tint = if (alreadyAdded) GreenOnline else CyanNeon,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // Info
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = camera.displayName,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextPrimary,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-            Text(
-                text = "${camera.host}:${camera.port}",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextHint,
-                fontSize = 11.sp
-            )
-        }
-
-        // Add button
-        if (alreadyAdded) {
+            // Camera icon
             Box(
                 modifier = Modifier
-                    .background(GreenOnline.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                    .size(44.dp)
+                    .background(
+                        if (alreadyAdded) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        else MaterialTheme.colorScheme.secondaryContainer,
+                        RoundedCornerShape(12.dp)
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                Text("Đã thêm", style = MaterialTheme.typography.labelSmall, color = GreenOnline)
-            }
-        } else {
-            FilledTonalButton(
-                onClick = onAdd,
-                modifier = Modifier.height(34.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = CyanNeon.copy(alpha = 0.15f),
-                    contentColor = CyanNeon
+                Icon(
+                    imageVector = Icons.Filled.Videocam,
+                    contentDescription = null,
+                    tint = if (alreadyAdded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(24.dp)
                 )
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Thêm", style = MaterialTheme.typography.labelMedium)
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Info
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = camera.displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                Text(
+                    text = "${camera.host}:${camera.port}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Add button
+            if (alreadyAdded) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text("Đã thêm") },
+                    leadingIcon = { Icon(Icons.Outlined.WifiFind, null, modifier = Modifier.size(14.dp)) },
+                    colors = AssistChipDefaults.assistChipColors(
+                        labelColor = MaterialTheme.colorScheme.primary,
+                        leadingIconContentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    border = null,
+                    shape = RoundedCornerShape(8.dp)
+                )
+            } else {
+                Button(
+                    onClick = onAdd,
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Thêm", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
@@ -194,31 +198,31 @@ private fun EmptyDiscoveryState(isScanning: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 32.dp),
+            .padding(vertical = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
             imageVector = if (isScanning) Icons.Outlined.WifiFind else Icons.Outlined.SearchOff,
             contentDescription = null,
-            tint = TextHint,
-            modifier = Modifier.size(48.dp)
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(56.dp)
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = if (isScanning) "Đang quét mạng LAN..." else "Không tìm thấy camera nào",
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            text = if (isScanning) "Đang tìm kiếm camera..." else "Không tìm thấy thiết bị nào",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
         Text(
             text = if (isScanning)
-                "Đảm bảo điện thoại camera đang phát"
+                "Đảm bảo các điện thoại camera khác đang mở\nvà kết nối cùng mạng WiFi."
             else
-                "Hãy bấm Bắt đầu phát trên điện thoại camera\nvà thử lại",
+                "Hãy bật chế độ 'Bắt đầu phát' trên các thiết bị khác\nvà thử lại.",
             style = MaterialTheme.typography.bodySmall,
-            color = TextHint,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp)
+            modifier = Modifier.padding(top = 8.dp)
         )
     }
 }

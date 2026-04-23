@@ -7,63 +7,63 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = CyanNeon,
-    onPrimary = NavyDeep,
-    primaryContainer = CyanGlow,
-    onPrimaryContainer = CyanNeon,
+    primary = Indigo400,
+    onPrimary = Slate900,
+    primaryContainer = IndigoContainerDark,
+    onPrimaryContainer = Indigo400,
 
-    secondary = NavySurface,
-    onSecondary = TextPrimary,
-    secondaryContainer = NavyCard,
-    onSecondaryContainer = TextPrimary,
+    secondary = Slate700,
+    onSecondary = TextPrimaryDark,
+    secondaryContainer = Slate800,
+    onSecondaryContainer = TextPrimaryDark,
 
-    background = NavyDeep,
-    onBackground = TextPrimary,
+    background = Slate900,
+    onBackground = TextPrimaryDark,
 
-    surface = NavyMid,
-    onSurface = TextPrimary,
-    surfaceVariant = NavySurface,
-    onSurfaceVariant = TextSecondary,
+    surface = Slate800,
+    onSurface = TextPrimaryDark,
+    surfaceVariant = Slate700,
+    onSurfaceVariant = TextSecondaryDark,
 
-    error = RedError,
+    error = Rose500,
     onError = Color.White,
-    errorContainer = RedErrorSurface,
-    onErrorContainer = RedError,
+    errorContainer = RoseContainerDark,
+    onErrorContainer = Rose500,
 
-    outline = DividerColor,
-    outlineVariant = TextHint,
-    inverseSurface = TextPrimary,
-    inverseOnSurface = NavyDeep,
+    outline = DividerDark,
+    outlineVariant = TextSecondaryDark,
+    inverseSurface = TextPrimaryLight,
+    inverseOnSurface = Slate900,
     scrim = OverlayDark
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = BluePrimary,
+    primary = Indigo600,
     onPrimary = Color.White,
-    primaryContainer = BlueLight,
-    onPrimaryContainer = BluePrimary,
+    primaryContainer = IndigoContainerLight,
+    onPrimaryContainer = Indigo600,
 
-    secondary = BackgroundLight,
-    onSecondary = TextDark,
-    secondaryContainer = BlueSurface,
-    onSecondaryContainer = TextDark,
+    secondary = Slate100,
+    onSecondary = TextPrimaryLight,
+    secondaryContainer = Slate50,
+    onSecondaryContainer = TextPrimaryLight,
 
-    background = BackgroundLight,
-    onBackground = TextDark,
+    background = Slate50,
+    onBackground = TextPrimaryLight,
 
     surface = Color.White,
-    onSurface = TextDark,
-    surfaceVariant = BlueSurface,
-    onSurfaceVariant = TextDarkSecondary,
+    onSurface = TextPrimaryLight,
+    surfaceVariant = Slate100,
+    onSurfaceVariant = TextSecondaryLight,
 
-    error = RedError,
+    error = Rose500,
     onError = Color.White,
-    errorContainer = RedErrorSurface,
-    onErrorContainer = RedError,
+    errorContainer = RoseContainerLight,
+    onErrorContainer = Rose500,
 
     outline = DividerLight,
-    outlineVariant = TextHint,
-    inverseSurface = TextDark,
+    outlineVariant = TextSecondaryLight,
+    inverseSurface = TextPrimaryDark,
     inverseOnSurface = Color.White,
     scrim = OverlayDark
 )
@@ -75,7 +75,7 @@ fun PhoneCameraTheme(
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     
-    Log.d("PhoneCameraTheme", "Applying theme: darkTheme=$darkTheme (System is ${if (isSystemInDarkTheme()) "Dark" else "Light"})")
+    Log.d("PhoneCamera", "Applying Slate & Indigo theme: darkTheme=$darkTheme")
 
     MaterialTheme(
         colorScheme = colorScheme,

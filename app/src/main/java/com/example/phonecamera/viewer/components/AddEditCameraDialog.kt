@@ -20,7 +20,6 @@ import com.example.phonecamera.ui.theme.*
 
 private fun isValidIp(input: String): Boolean {
     if (input.isBlank()) return false
-    // Allow hostname (letters/numbers/dots/hyphens) or IPv4
     val hostnameRegex = Regex("""^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$""")
     val ipv4Regex = Regex("""^(\d{1,3}\.){3}\d{1,3}$""")
     return hostnameRegex.matches(input) || ipv4Regex.matches(input)
@@ -47,7 +46,6 @@ fun AddEditCameraDialog(
     var password by remember { mutableStateOf(initialConfig?.password ?: "") }
     var showPassword by remember { mutableStateOf(false) }
 
-    // Validation state
     val nameError = name.isBlank()
     val hostError = host.isNotBlank() && !isValidIp(host)
     val portError = port.isNotBlank() && !isValidPort(port)
@@ -55,20 +53,18 @@ fun AddEditCameraDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = NavyCard,
-        shape = RoundedCornerShape(20.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(24.dp),
         title = {
-            Row {
-                Text(
-                    text = if (initialConfig != null) "Sửa Camera ${slotIndex + 1}" else "Thêm Camera ${slotIndex + 1}",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = TextPrimary
-                )
-            }
+            Text(
+                text = if (initialConfig != null) "Sửa Camera ${slotIndex + 1}" else "Thêm Camera ${slotIndex + 1}",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // ─── Name ───
                 AppTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -78,16 +74,15 @@ fun AddEditCameraDialog(
                     errorMessage = "Tên không được để trống"
                 )
 
-                HorizontalDivider(color = DividerColor)
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 
                 Text(
                     text = "KẾT NỐI",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextHint,
-                    fontWeight = FontWeight.SemiBold
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
                 )
 
-                // ─── Host / IP ───
                 AppTextField(
                     value = host,
                     onValueChange = { host = it.trim() },
@@ -99,7 +94,6 @@ fun AddEditCameraDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
                 )
 
-                // ─── Port ───
                 AppTextField(
                     value = port,
                     onValueChange = { if (it.length <= 5) port = it.filter(Char::isDigit) },
@@ -111,12 +105,11 @@ fun AddEditCameraDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
 
-                // ─── Auth (optional) ───
                 Text(
                     text = "XÁC THỰC (tuỳ chọn)",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextHint,
-                    fontWeight = FontWeight.SemiBold
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
                 )
 
                 AppTextField(
@@ -137,7 +130,7 @@ fun AddEditCameraDialog(
                             Icon(
                                 imageVector = if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                                 contentDescription = null,
-                                tint = TextSecondary
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -160,11 +153,10 @@ fun AddEditCameraDialog(
                 },
                 enabled = isFormValid,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = CyanNeon,
-                    contentColor = NavyDeep,
-                    disabledContainerColor = CyanNeon.copy(alpha = 0.3f),
-                    disabledContentColor = NavyDeep.copy(alpha = 0.5f)
-                )
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text("Lưu", fontWeight = FontWeight.Bold)
             }
@@ -174,14 +166,14 @@ fun AddEditCameraDialog(
                 if (onDelete != null) {
                     TextButton(
                         onClick = onDelete,
-                        colors = ButtonDefaults.textButtonColors(contentColor = RedError)
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text("Xóa")
                     }
                     Spacer(modifier = Modifier.weight(1f))
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("Huỷ", color = TextSecondary)
+                    Text("Huỷ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -205,12 +197,12 @@ private fun AppTextField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            label = { Text(label, style = MaterialTheme.typography.bodySmall) },
+            label = { Text(label) },
             placeholder = if (placeholder.isNotEmpty()) {
-                { Text(placeholder, color = TextHint) }
+                { Text(placeholder) }
             } else null,
             leadingIcon = leadingIcon?.let {
-                { Icon(it, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                { Icon(it, contentDescription = null, modifier = Modifier.size(20.dp)) }
             },
             trailingIcon = trailingIcon,
             isError = isError,
@@ -219,29 +211,24 @@ private fun AppTextField(
             visualTransformation = visualTransformation,
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = CyanNeon,
-                unfocusedBorderColor = DividerColor,
-                errorBorderColor = RedError,
-                focusedLabelColor = CyanNeon,
-                unfocusedLabelColor = TextSecondary,
-                errorLabelColor = RedError,
-                focusedLeadingIconColor = CyanNeon,
-                unfocusedLeadingIconColor = TextSecondary,
-                cursorColor = CyanNeon,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                errorTextColor = TextPrimary,
-                focusedContainerColor = NavySurface,
-                unfocusedContainerColor = NavySurface,
-                errorContainerColor = NavySurface
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                errorBorderColor = MaterialTheme.colorScheme.error,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                errorContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
             ),
-            shape = RoundedCornerShape(10.dp)
+            shape = RoundedCornerShape(12.dp)
         )
         AnimatedVisibility(visible = isError && errorMessage.isNotEmpty()) {
             Text(
                 text = errorMessage,
                 style = MaterialTheme.typography.bodySmall,
-                color = RedError,
+                color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(start = 4.dp, top = 2.dp)
             )
         }

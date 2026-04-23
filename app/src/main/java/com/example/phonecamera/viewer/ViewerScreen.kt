@@ -108,10 +108,17 @@ fun ViewerScreen(
         topBar = {
             if (!isLandscape) {
                 TopAppBar(
-                    title = { Text("Xem Camera") },
+                    title = { 
+                        Text(
+                            text = "Xem Camera",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ) 
+                    },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Filled.ArrowBack, "Quay lại", tint = TextPrimary)
+                            Icon(Icons.Filled.ArrowBack, "Quay lại", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     },
                     actions = {
@@ -121,16 +128,17 @@ fun ViewerScreen(
                             onCheckedChange = { viewModel.toggleTcp() },
                             modifier = Modifier.padding(end = 4.dp),
                             colors = IconButtonDefaults.filledTonalIconToggleButtonColors(
-                                containerColor = NavyCard,
-                                contentColor = TextSecondary,
-                                checkedContainerColor = CyanNeon.copy(alpha = 0.2f),
-                                checkedContentColor = CyanNeon
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                checkedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                checkedContentColor = MaterialTheme.colorScheme.primary
                             )
                         ) {
                             Text(
                                 text = if (uiState.useTcp) "TCP" else "UDP",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Black,
+                                color = if (uiState.useTcp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
@@ -138,7 +146,10 @@ fun ViewerScreen(
                         BadgedBox(
                             badge = {
                                 if (uiState.discoveryBadgeCount > 0) {
-                                    Badge(containerColor = CyanNeon, contentColor = NavyDeep) {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ) {
                                         Text(uiState.discoveryBadgeCount.toString(), fontSize = 10.sp)
                                     }
                                 }
@@ -148,7 +159,7 @@ fun ViewerScreen(
                             IconButton(onClick = { showDiscovery = true; viewModel.clearDiscoveryBadge() }) {
                                 Icon(
                                     Icons.Outlined.WifiFind, "Tìm camera tự động",
-                                    tint = if (uiState.discoveryBadgeCount > 0) CyanNeon else TextSecondary
+                                    tint = if (uiState.discoveryBadgeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -156,7 +167,7 @@ fun ViewerScreen(
                         IconButton(onClick = {
                             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
                         }) {
-                            Icon(Icons.Filled.Fullscreen, "Chế độ lưới ngang", tint = TextPrimary)
+                            Icon(Icons.Filled.Fullscreen, "Chế độ lưới ngang", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -171,8 +182,8 @@ fun ViewerScreen(
                         if (fullscreenSlot != null) fullscreenSlot = null
                         else activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT 
                     },
-                    containerColor = NavyCard.copy(alpha = 0.8f),
-                    contentColor = CyanNeon
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                    contentColor = MaterialTheme.colorScheme.primary
                 ) {
                     Icon(Icons.Filled.FullscreenExit, "Thoát toàn màn hình")
                 }
@@ -317,7 +328,7 @@ fun ViewerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(16f / 9f) // Keep cells 16:9 in list
-                            .background(NavyCard, RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
                     ) {
                         CameraCell(
                             slotIndex = index,

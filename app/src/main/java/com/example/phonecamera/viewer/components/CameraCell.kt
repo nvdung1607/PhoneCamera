@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,8 +68,8 @@ fun CameraCell(
         modifier = modifier
             .aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(10.dp))
-            .background(NavyCard)
-            .border(1.dp, DividerColor, RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
     ) {
         // ─────────────────────────────────────────────────────────────────
         // IMPORTANT: ExoPlayer is created/managed OUTSIDE any state-keyed
@@ -315,7 +316,7 @@ private fun ActivePlayerCell(
             Text(
                 text = config.name,
                 style = MaterialTheme.typography.labelSmall,
-                color = TextPrimary,
+                color = Color.White,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -354,7 +355,7 @@ private fun ActivePlayerCell(
                 Icon(
                     imageVector = if (isAudioEnabled) Icons.Outlined.VolumeUp else Icons.Outlined.VolumeOff,
                     contentDescription = "Bật/Tắt âm thanh",
-                    tint = if (isAudioEnabled) CyanNeon else TextSecondary,
+                    tint = if (isAudioEnabled) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -367,7 +368,7 @@ private fun ActivePlayerCell(
                 Icon(
                     imageVector = Icons.Outlined.Refresh,
                     contentDescription = "Tải lại camera",
-                    tint = CyanNeon,
+                    tint = Color.White.copy(alpha = 0.9f),
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -380,7 +381,7 @@ private fun ActivePlayerCell(
                 Icon(
                     imageVector = if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
                     contentDescription = "Toàn màn hình",
-                    tint = TextSecondary,
+                    tint = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -388,7 +389,7 @@ private fun ActivePlayerCell(
             IconButton(onClick = onEdit, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Icons.Outlined.Edit, "Sửa camera",
-                    tint = TextSecondary, modifier = Modifier.size(14.dp)
+                    tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp)
                 )
             }
         }
@@ -447,42 +448,74 @@ private fun LoadingCell(name: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        CircularProgressIndicator(modifier = Modifier.size(28.dp), color = CyanNeon, strokeWidth = 2.dp)
+        CircularProgressIndicator(
+            modifier = Modifier.size(28.dp),
+            color = MaterialTheme.colorScheme.primary,
+            strokeWidth = 2.dp
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Text(name, style = MaterialTheme.typography.labelSmall, color = TextSecondary, maxLines = 1)
-        Text("Đang khởi động...", style = MaterialTheme.typography.bodySmall,
-            color = TextHint, fontSize = 10.sp)
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1
+        )
+        Text(
+            text = "Đang khởi động...",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 10.sp
+        )
     }
 }
 
 @Composable
 private fun ErrorCell(name: String, message: String, onRetry: () -> Unit, onEdit: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().background(RedErrorSurface).padding(8.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Filled.WifiOff, null, tint = RedError, modifier = Modifier.size(24.dp))
+        Icon(
+            imageVector = Icons.Filled.WifiOff,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(24.dp)
+        )
         Spacer(modifier = Modifier.height(4.dp))
-        Text(name, style = MaterialTheme.typography.labelSmall,
-            color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
         Spacer(modifier = Modifier.height(2.dp))
-        Text(message, style = MaterialTheme.typography.bodySmall,
-            color = RedError, textAlign = TextAlign.Center,
-            fontSize = 10.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+            fontSize = 10.sp,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(
                 onClick = onRetry, modifier = Modifier.height(30.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = CyanNeon),
-                border = androidx.compose.foundation.BorderStroke(1.dp, CyanNeon.copy(alpha = 0.5f))
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
             ) { Text("Thử lại", fontSize = 11.sp) }
             OutlinedButton(
                 onClick = onEdit, modifier = Modifier.height(30.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) { Text("Sửa", fontSize = 11.sp) }
         }
     }

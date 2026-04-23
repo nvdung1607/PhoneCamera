@@ -124,11 +124,11 @@ fun StreamerScreen(
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
                     modifier = Modifier.padding(12.dp),
-                    containerColor = RedErrorSurface,
-                    contentColor = RedError,
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     dismissAction = {
                         TextButton(onClick = { data.dismiss() }) {
-                            Text("Đóng", color = RedError)
+                            Text("Đóng", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 ) {
@@ -202,7 +202,7 @@ fun StreamerScreen(
                                 modifier = Modifier
                                     .background(OverlayDark, RoundedCornerShape(50))
                             ) {
-                                Icon(Icons.Filled.FlipCameraAndroid, "Lật Camera", tint = CyanNeon)
+                                Icon(Icons.Filled.FlipCameraAndroid, "Lật Camera", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -240,18 +240,19 @@ fun StreamerScreen(
                     modifier = Modifier
                         .weight(0.35f)
                         .fillMaxHeight()
-                        .background(NavyMid)
+                        .background(MaterialTheme.colorScheme.surface)
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.SpaceEvenly
                 ) {
                     // Resolution chips (disabled while streaming)
                     Column {
                         Text(
-                            text = "Chất lượng",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextHint
+                            text = "Chất lượng video",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -265,23 +266,22 @@ fun StreamerScreen(
                                     label = {
                                         Text(
                                             text = resolution.label,
-                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                            fontSize = 11.sp
+                                            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
+                                            fontSize = 12.sp,
+                                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                         )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = CyanNeon.copy(alpha = 0.2f),
-                                        selectedLabelColor = CyanNeon,
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
                                         enabled = !uiState.isStreaming,
                                         selected = selected,
-                                        selectedBorderColor = CyanNeon.copy(alpha = 0.5f),
-                                        borderColor = DividerColor,
+                                        selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                        borderColor = MaterialTheme.colorScheme.outlineVariant,
                                         borderWidth = 1.dp,
-                                        selectedBorderWidth = 1.dp
+                                        selectedBorderWidth = 1.5.dp
                                     )
                                 )
                             }
@@ -305,8 +305,8 @@ fun StreamerScreen(
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (uiState.isStreaming) RedError else CyanNeon,
-                            contentColor = if (uiState.isStreaming) Color.White else NavyDeep
+                            containerColor = if (uiState.isStreaming) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            contentColor = if (uiState.isStreaming) Color.White else MaterialTheme.colorScheme.onPrimary
                         )
                     ) {
                         Icon(
@@ -382,31 +382,35 @@ private fun LiveBadge() {
 @Composable
 private fun RtspUrlCard(url: String, onCopy: () -> Unit) {
     var copied by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(NavyCard)
-            .border(1.dp, DividerColor, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = Icons.Outlined.Link,
             contentDescription = null,
-            tint = CyanNeon,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text("URL để kết nối", style = MaterialTheme.typography.labelSmall, color = TextHint)
+            Text(
+                "URL để kết nối", 
+                style = MaterialTheme.typography.labelSmall, 
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Bold
+            )
             Text(
                 text = url,
                 style = MaterialTheme.typography.bodyMedium,
-                color = CyanNeon,
-                fontWeight = FontWeight.Medium
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.ExtraBold
             )
         }
         IconButton(
@@ -419,7 +423,7 @@ private fun RtspUrlCard(url: String, onCopy: () -> Unit) {
             Icon(
                 imageVector = if (copied) Icons.Filled.Check else Icons.Outlined.ContentCopy,
                 contentDescription = "Sao chép URL",
-                tint = if (copied) GreenOnline else TextSecondary,
+                tint = if (copied) GreenOnline else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
         }
