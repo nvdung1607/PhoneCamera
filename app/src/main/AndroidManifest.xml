@@ -2,29 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Network -->
+    <!-- Mạng -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <!-- Required for mDNS multicast packets (NSD auto-discovery) -->
+    <!-- Cần thiết để nhận gói mDNS multicast (NSD tự động tìm camera) -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
-    <!-- Camera & Audio (runtime) -->
+    <!-- Camera và Microphone (xin quyền runtime) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Notifications (runtime on API 33+) -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Keep CPU awake while streaming -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-
-    <!-- Foreground service -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-
-    <!-- Camera hardware (optional - supports phones without camera2) -->
+    <!-- Tính năng camera (không bắt buộc) -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
@@ -52,12 +41,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- RTSP Foreground Service -->
-        <service
-            android:name=".streamer.RtspStreamService"
-            android:exported="false"
-            android:foregroundServiceType="camera|microphone" />
 
     </application>
 

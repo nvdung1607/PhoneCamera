@@ -1,40 +1,44 @@
 package com.example.phonecamera.streamer
 
 import android.app.Application
-import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
 import android.net.wifi.WifiManager
-import android.os.IBinder
 import android.text.format.Formatter
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.phonecamera.data.nsd.NsdHelper
+import com.example.phonecamera.utils.AppLog
+import com.pedro.common.ConnectChecker
+import com.pedro.encoder.input.video.CameraHelper
 import com.pedro.library.view.OpenGlView
+import com.pedro.rtspserver.RtspServerCamera2
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
-private const val TAG = "RTSPGuard.Streamer"
+const val RTSP_PORT = 8080
 
 enum class Resolution(val label: String, val width: Int, val height: Int, val bitrateBps: Int) {
-    P360("360p", 640, 360, 500_000), // 0.5 Mbps
-    P720("720p", 1280, 720, 1_200_000), // 1.2 Mbps
-    P1080("1080p", 1920, 1080, 2_000_000) // 2 Mbps
+    P360("360p", 640, 360, 500_000),
+    P720("720p", 1280, 720, 1_200_000),
+    P1080("1080p", 1920, 1080, 2_000_000)
 }
 
 data class StreamerUiState(
     val isStreaming: Boolean = false,
     val useFrontCamera: Boolean = false,
-    val selectedResolution: Resolution = Resolution.P360, // Default to 360p
+    val selectedResolution: Resolution = Resolution.P360,
     val localIpAddress: String = "",
-    val streamPort: Int = 8080,
     val errorMessage: String? = null,
-    val isBound: Boolean = false,
-    val isCameraReady: Boolean = false   // true once OpenGlView is attached
+    val isCameraReady: Boolean = false,
+    /** Danh sách tên thiết bị đang xem (gửi qua ControlServer) */
+    val connectedViewers: List<String> = emptyList()
 ) {
-    val rtspUrl: String get() = "rtsp://$localIpAddress:$streamPort"
+    val rtspUrl: String get() = "rtsp://$localIpAddress:$RTSP_PORT"
 }
 
 class StreamerViewModel(application: Application) : AndroidViewModel(application) {
@@ -42,148 +46,148 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
     private val _uiState = MutableStateFlow(StreamerUiState())
     val uiState: StateFlow<StreamerUiState> = _uiState.asStateFlow()
 
-    private var streamService: RtspStreamService? = null
+    private var rtspCamera: RtspServerCamera2? = null
+    private val nsdHelper = NsdHelper(application)
+    private val controlServer = ControlServer()
 
-    private var serviceBound = false
-
-    /**
-     * Holds the OpenGlView reference so we can attach it as soon as the service connects,
-     * solving the race condition between UI layout and async service binding.
-     */
-    private var pendingGlView: OpenGlView? = null
-
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as RtspStreamService.StreamBinder
-            streamService = binder.getService()
-            serviceBound = true
-            _uiState.update { it.copy(isBound = true, isStreaming = streamService?.isStreaming == true) }
-            Log.d(TAG, "Service connected")
-
-            // Attach the OpenGlView if the UI was ready before service connected
-            pendingGlView?.let { glView ->
-                Log.d(TAG, "Attaching pending OpenGlView after service connected")
-                streamService?.attachCamera(glView, _uiState.value.useFrontCamera)
-                _uiState.update { it.copy(isCameraReady = true) }
-                pendingGlView = null
-            }
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            streamService = null
-            serviceBound = false
-            _uiState.update { it.copy(
-                isBound = false,
-                isStreaming = false,
-                isCameraReady = false
-            ) }
-            Log.d(TAG, "Service disconnected")
-        }
+    private val connectChecker = object : ConnectChecker {
+        override fun onConnectionStarted(url: String) = AppLog.d("Client connecting: $url")
+        override fun onConnectionSuccess() = AppLog.i("Client connected")
+        override fun onConnectionFailed(reason: String) = AppLog.e("Connection failed: $reason")
+        override fun onNewBitrate(bitrate: Long) = AppLog.v("Bitrate: ${bitrate / 1000} kbps")
+        override fun onDisconnect() = AppLog.i("Client disconnected")
+        override fun onAuthError() = AppLog.e("Auth error")
+        override fun onAuthSuccess() {}
     }
 
     init {
         loadLocalIp()
-        bindToService()
+        startControlServer()
     }
 
     private fun loadLocalIp() {
         try {
-            val wifiManager = getApplication<Application>()
-                .applicationContext
-                .getSystemService(Context.WIFI_SERVICE) as WifiManager
             @Suppress("DEPRECATION")
-            val rawIp = wifiManager.connectionInfo.ipAddress
-            val ip = Formatter.formatIpAddress(rawIp)
-            _uiState.value = _uiState.value.copy(localIpAddress = ip)
-            Log.d(TAG, "Local IP: $ip")
+            val rawIp = (getApplication<Application>()
+                .getSystemService(Context.WIFI_SERVICE) as WifiManager)
+                .connectionInfo.ipAddress
+            _uiState.update { it.copy(localIpAddress = Formatter.formatIpAddress(rawIp)) }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not get local IP: ${e.message}")
+            AppLog.w("Could not get local IP: ${e.message}")
         }
     }
 
-    private fun bindToService() {
-        val ctx = getApplication<Application>()
-        val intent = RtspStreamService.startIntent(ctx)
-        ctx.startService(intent)
-        ctx.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+    private fun startControlServer() {
+        controlServer.start(viewModelScope) { cmd ->
+            when (cmd) {
+                is ControlServer.Command.Hello -> {
+                    AppLog.i("Viewer connected: ${cmd.deviceName} (${cmd.ip})")
+                    _uiState.update { s ->
+                        s.copy(connectedViewers = (s.connectedViewers + cmd.deviceName).distinct())
+                    }
+                }
+                is ControlServer.Command.Bye -> {
+                    AppLog.i("Viewer disconnected: ${cmd.deviceName}")
+                    _uiState.update { s ->
+                        s.copy(connectedViewers = s.connectedViewers.filter { it != cmd.deviceName })
+                    }
+                }
+                is ControlServer.Command.SetQuality -> {
+                    val res = Resolution.entries.firstOrNull { it.height == cmd.heightP } ?: return@start
+                    AppLog.i("Remote quality change → ${res.label} (from ${cmd.fromIp})")
+                    changeQualityRemote(res)
+                }
+            }
+        }
     }
 
-    /**
-     * Called from Compose UI when the OpenGlView is ready.
-     * Stores the view and attaches immediately if service is already bound.
-     * If service is not yet bound, the view will be attached in [serviceConnection.onServiceConnected].
-     */
-    fun attachCameraToService(glView: OpenGlView) {
-        if (serviceBound) {
-            Log.d(TAG, "Service already bound — attaching OpenGlView immediately")
-            streamService?.attachCamera(glView, _uiState.value.useFrontCamera)
-            _uiState.update { it.copy(isCameraReady = true) }
-        } else {
-            Log.d(TAG, "Service not yet bound — OpenGlView stored, will attach on connect")
-            pendingGlView = glView
+    /** Gọi khi OpenGlView đã sẵn sàng. Khởi tạo camera và bắt đầu preview. */
+    fun attachCamera(glView: OpenGlView) {
+        val facing = cameraFacing()
+        rtspCamera = RtspServerCamera2(glView, connectChecker, RTSP_PORT).also {
+            it.startPreview(facing)
         }
+        _uiState.update { it.copy(isCameraReady = true) }
+        AppLog.d("Camera attached (facing=$facing)")
     }
 
     fun startStream() {
-        val state = _uiState.value
-        val svc = streamService
+        val cam = rtspCamera ?: return _uiState.update {
+            it.copy(errorMessage = "Camera chưa sẵn sàng. Vui lòng thử lại.")
+        }
+        val res = _uiState.value.selectedResolution
 
-        // Detailed error diagnostics
-        if (svc == null) {
-            _uiState.value = state.copy(
-                errorMessage = "Dịch vụ camera chưa sẵn sàng. Vui lòng đợi và thử lại."
-            )
+        if (!cam.prepareVideo(res.width, res.height, 30, res.bitrateBps, 0)) {
+            _uiState.update { it.copy(errorMessage = "Không thể chuẩn bị encoder video (${res.label}).") }
             return
         }
-        if (!state.isCameraReady) {
-            _uiState.value = state.copy(
-                errorMessage = "Camera chưa được khởi tạo. Vui lòng đợi và thử lại."
-            )
+        if (!cam.prepareAudio()) {
+            _uiState.update { it.copy(errorMessage = "Không thể khởi tạo microphone. Kiểm tra quyền RECORD_AUDIO.") }
             return
         }
+        cam.startPreview(cameraFacing())
+        cam.startStream()
 
-        val res = state.selectedResolution
-        val result = svc.startStreaming(
-            width = res.width,
-            height = res.height,
-            fps = 30,
-            bitrateBps = res.bitrateBps,
-            useFrontCamera = state.useFrontCamera
-        )
-
-        when (result) {
-            is StreamResult.Success -> {
-                _uiState.value = state.copy(isStreaming = true, errorMessage = null)
-            }
-            is StreamResult.Error -> {
-                Log.e(TAG, "Stream error: ${result.reason}")
-                _uiState.value = state.copy(isStreaming = false, errorMessage = result.reason)
-            }
+        if (cam.isStreaming) {
+            nsdHelper.registerService(RTSP_PORT)
+            _uiState.update { it.copy(isStreaming = true, errorMessage = null) }
+            AppLog.i("Stream started on port $RTSP_PORT at ${res.label}")
+        } else {
+            _uiState.update { it.copy(errorMessage = "Không thể bắt đầu phát. Kiểm tra quyền Camera.") }
         }
     }
 
     fun stopStream() {
-        streamService?.stopStreaming()
-        _uiState.value = _uiState.value.copy(isStreaming = false)
+        nsdHelper.unregisterService()
+        rtspCamera?.let { if (it.isStreaming) it.stopStream() }
+        _uiState.update { it.copy(isStreaming = false) }
+        AppLog.i("Stream stopped")
+    }
+
+    /** Đổi chất lượng từ xa (lệnh từ Viewer). Tự động restart stream trên Main thread. */
+    private fun changeQualityRemote(resolution: Resolution) {
+        viewModelScope.launch(Dispatchers.Main) {
+            val wasStreaming = _uiState.value.isStreaming
+            _uiState.update { it.copy(selectedResolution = resolution) }
+            if (wasStreaming) {
+                rtspCamera?.let { if (it.isStreaming) it.stopStream() }
+                delay(500L)
+                startStream()
+            }
+        }
     }
 
     fun switchCamera() {
-        val state = _uiState.value
-        streamService?.switchCamera()
-        _uiState.value = state.copy(useFrontCamera = !state.useFrontCamera)
+        rtspCamera?.switchCamera()
+        _uiState.update { it.copy(useFrontCamera = !it.useFrontCamera) }
     }
 
     fun selectResolution(resolution: Resolution) {
-        if (_uiState.value.isStreaming) return
-        _uiState.value = _uiState.value.copy(selectedResolution = resolution)
+        if (!_uiState.value.isStreaming) {
+            _uiState.update { it.copy(selectedResolution = resolution) }
+        }
     }
 
-    fun dismissError() {
-        _uiState.value = _uiState.value.copy(errorMessage = null)
+    fun dismissError() = _uiState.update { it.copy(errorMessage = null) }
+
+    /** Dừng stream và giải phóng tài nguyên. Gọi khi rời khỏi màn hình. */
+    fun releaseCamera() {
+        nsdHelper.stopAll()
+        rtspCamera?.apply {
+            if (isStreaming) stopStream()
+            if (isOnPreview) stopPreview()
+        }
+        rtspCamera = null
+        _uiState.update { it.copy(isStreaming = false, isCameraReady = false, connectedViewers = emptyList()) }
+        AppLog.d("Camera released")
     }
 
     override fun onCleared() {
+        controlServer.stop()
+        releaseCamera()
         super.onCleared()
-        try { getApplication<Application>().unbindService(serviceConnection) } catch (_: Exception) {}
     }
+
+    private fun cameraFacing() =
+        if (_uiState.value.useFrontCamera) CameraHelper.Facing.FRONT else CameraHelper.Facing.BACK
 }

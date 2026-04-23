@@ -6,7 +6,6 @@ import android.content.pm.ActivityInfo
 import androidx.compose.runtime.DisposableEffect
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -58,32 +57,25 @@ fun HomeScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    val permissionsToRequest = buildList {
-        add(Manifest.permission.CAMERA)
-        add(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
+    val permissionsToRequest = listOf(
+        Manifest.permission.CAMERA,
+        Manifest.permission.RECORD_AUDIO
+    )
 
     val permissionsState = rememberMultiplePermissionsState(permissionsToRequest) { results ->
         viewModel.onPermissionsResult(
             cameraGranted = results[Manifest.permission.CAMERA] == true,
-            audioGranted = results[Manifest.permission.RECORD_AUDIO] == true,
-            notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                results[Manifest.permission.POST_NOTIFICATIONS] == true
-            } else true
+            audioGranted = results[Manifest.permission.RECORD_AUDIO] == true
         )
     }
 
-    // Update state on initial load
+    // Cập nhật trạng thái quyền khi mở màn hình
     LaunchedEffect(permissionsState.permissions) {
         viewModel.onPermissionsResult(
             cameraGranted = permissionsState.permissions
                 .firstOrNull { it.permission == Manifest.permission.CAMERA }?.status?.isGranted == true,
             audioGranted = permissionsState.permissions
-                .firstOrNull { it.permission == Manifest.permission.RECORD_AUDIO }?.status?.isGranted == true,
-            notificationGranted = true
+                .firstOrNull { it.permission == Manifest.permission.RECORD_AUDIO }?.status?.isGranted == true
         )
     }
 

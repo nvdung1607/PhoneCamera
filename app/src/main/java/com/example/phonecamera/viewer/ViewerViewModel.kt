@@ -8,9 +8,14 @@ import com.example.phonecamera.data.CameraConfig
 import com.example.phonecamera.data.CameraRepository
 import com.example.phonecamera.data.nsd.DiscoveredCamera
 import com.example.phonecamera.data.nsd.NsdHelper
+import com.example.phonecamera.streamer.ControlServer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.PrintWriter
+import java.net.Socket
 
 
 
@@ -165,7 +170,8 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             id = slot,
             name = camera.displayName,
             host = camera.host,
-            port = camera.port
+            port = camera.port,
+            isPhoneCamera = true  // Camera được tìm qua NSD → là Phone Camera
         )
         saveCamera(config)
         _uiState.update { it.copy(discoveryBadgeCount = maxOf(0, it.discoveryBadgeCount - 1)) }
@@ -236,15 +242,83 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun dismissSnackbar() { _uiState.update { it.copy(snackbarMessage = null) } }
 
+    /**
+     * Gửi lệnh đổi chất lượng tới máy Streamer qua TCP ControlServer.
+     * Chỉ hoạt động với camera có [CameraConfig.isPhoneCamera] = true.
+     */
+    fun setRemoteQuality(slotIndex: Int, heightP: Int) {
+        val cam = _uiState.value.cameras.getOrNull(slotIndex) ?: return
+        if (!cam.isPhoneCamera) {
+            AppLog.w("setRemoteQuality: slot $slotIndex is not a Phone Camera")
+            return
+        }
+        AppLog.i("setRemoteQuality: slot=$slotIndex → ${heightP}p @ ${cam.host}")
+        // Đặt trạng thái loading ngay để UI phản hồi nhanh
+        retryCamera(slotIndex)
+        sendControlCommand(cam.host, "SET_QUALITY $heightP") { response ->
+            AppLog.d("SET_QUALITY response: $response")
+            if (response == "OK") {
+                // Đợi streamer dừng và khởi động lại stream xong mới kết nối lại
+                withContext(Dispatchers.Main) {
+                    delay(2000L)
+                    retryCamera(slotIndex)
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi chất lượng: $response") }
+                    retryCamera(slotIndex) // Vẫn retry để khôi phục luồng cũ
+                }
+            }
+        }
+    }
+
+    private fun sendControlCommand(host: String, command: String, onResponse: (suspend (String?) -> Unit)? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                Socket(host, ControlServer.CONTROL_PORT).use { socket ->
+                    val writer = java.io.PrintWriter(socket.outputStream, true)
+                    writer.println(command)
+                    if (onResponse != null) {
+                        val response = java.io.BufferedReader(java.io.InputStreamReader(socket.inputStream)).readLine()
+                        onResponse(response)
+                    }
+                }
+            } catch (e: Exception) {
+                AppLog.e("sendControlCommand failed: ${e.message}")
+                if (onResponse != null) {
+                    onResponse(null)
+                }
+            }
+        }
+    }
+
     private fun setPlayerState(index: Int, state: PlayerState) {
         AppLog.d("setPlayerState: slot=$index → $state")
+        
+        val cam = _uiState.value.cameras.getOrNull(index)
+        if (cam?.isPhoneCamera == true) {
+            val oldState = _uiState.value.playerStates[index]
+            val deviceName = NsdHelper.deviceServiceName()
+            if (oldState !is PlayerState.Playing && state is PlayerState.Playing) {
+                sendControlCommand(cam.host, "HELLO $deviceName")
+            } else if (oldState is PlayerState.Playing && state !is PlayerState.Playing) {
+                sendControlCommand(cam.host, "BYE $deviceName")
+            }
+        }
+
         _uiState.update { current ->
             current.copy(playerStates = current.playerStates.toMutableMap().also { it[index] = state })
         }
     }
 
     override fun onCleared() {
-        AppLog.d("ViewerViewModel onCleared — stopping NSD")
+        AppLog.d("ViewerViewModel onCleared")
+        val deviceName = NsdHelper.deviceServiceName()
+        _uiState.value.cameras.forEachIndexed { index, cam ->
+            if (cam?.isPhoneCamera == true && _uiState.value.playerStates[index] is PlayerState.Playing) {
+                sendControlCommand(cam.host, "BYE $deviceName")
+            }
+        }
         nsdHelper.stopAll()
         super.onCleared()
     }

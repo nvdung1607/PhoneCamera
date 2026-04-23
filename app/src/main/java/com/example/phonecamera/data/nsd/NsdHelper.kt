@@ -4,38 +4,33 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
-import android.util.Log
+import com.example.phonecamera.utils.AppLog
 
 /**
- * NsdHelper wraps Android's NsdManager for mDNS service registration and discovery.
+ * Wrapper quanh Android NsdManager để đăng ký và tìm kiếm dịch vụ mDNS.
  *
- * Service type: "_rtspguard._tcp"
- * TXT record equivalent: the service name encodes the device model.
- *
- * Usage:
- *   Camera phone → NsdHelper.registerService(port)
- *   Viewer phone → NsdHelper.discoverServices(onFound, onLost)
+ * - Camera phone → gọi [registerService] khi bắt đầu phát
+ * - Viewer phone → gọi [discoverServices] để tìm camera trong mạng LAN
  */
 class NsdHelper(private val context: Context) {
 
     companion object {
-        private const val TAG = "RTSPGuard.NSD"
         const val SERVICE_TYPE = "_rtspguard._tcp."
-        // Sanitize model name for NSD service name (letters, digits, hyphens only)
+
         fun deviceServiceName(): String {
             val raw = Build.MODEL.replace(Regex("[^A-Za-z0-9\\-]"), "-").trim('-')
-            return if (raw.length > 60) raw.take(60) else raw.ifEmpty { "RTSPGuard" }
+            return raw.take(60).ifEmpty { "RTSPGuard" }
         }
     }
 
     private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
 
-    // ─── Registration (Camera phone) ───────────────────────────────────────
+    // ─── Đăng ký dịch vụ (Camera phone) ────────────────────────────────────
 
     private var registrationListener: NsdManager.RegistrationListener? = null
 
     fun registerService(port: Int) {
-        if (registrationListener != null) return // Already registered
+        if (registrationListener != null) return
 
         val serviceInfo = NsdServiceInfo().apply {
             serviceName = deviceServiceName()
@@ -45,17 +40,17 @@ class NsdHelper(private val context: Context) {
 
         registrationListener = object : NsdManager.RegistrationListener {
             override fun onRegistrationFailed(info: NsdServiceInfo, code: Int) {
-                Log.e(TAG, "Registration failed: $code")
+                AppLog.e("NSD registration failed: $code")
                 registrationListener = null
             }
             override fun onUnregistrationFailed(info: NsdServiceInfo, code: Int) {
-                Log.e(TAG, "Unregistration failed: $code")
+                AppLog.e("NSD unregistration failed: $code")
             }
             override fun onServiceRegistered(info: NsdServiceInfo) {
-                Log.d(TAG, "Registered: ${info.serviceName}")
+                AppLog.d("NSD registered: ${info.serviceName}")
             }
             override fun onServiceUnregistered(info: NsdServiceInfo) {
-                Log.d(TAG, "Unregistered: ${info.serviceName}")
+                AppLog.d("NSD unregistered: ${info.serviceName}")
                 registrationListener = null
             }
         }
@@ -65,47 +60,46 @@ class NsdHelper(private val context: Context) {
 
     fun unregisterService() {
         registrationListener?.let {
-            try { nsdManager.unregisterService(it) } catch (e: Exception) { Log.w(TAG, e) }
+            try { nsdManager.unregisterService(it) } catch (e: Exception) { AppLog.w("NSD unregister error: ${e.message}") }
             registrationListener = null
         }
     }
 
-    // ─── Discovery (Viewer phone) ───────────────────────────────────────────
+    // ─── Tìm kiếm dịch vụ (Viewer phone) ───────────────────────────────────
 
     private var discoveryListener: NsdManager.DiscoveryListener? = null
 
     /**
-     * Start discovering Phone Camera devices on the LAN.
-     * [onFound] is called on background thread — post to main thread if updating UI.
-     * [onLost] is called when a camera goes offline.
+     * Bắt đầu tìm kiếm camera trong mạng LAN.
+     * Callback [onFound] và [onLost] được gọi trên background thread.
      */
     fun discoverServices(
         onFound: (DiscoveredCamera) -> Unit,
         onLost: (serviceId: String) -> Unit
     ) {
-        if (discoveryListener != null) return // Already running
+        if (discoveryListener != null) return
 
         discoveryListener = object : NsdManager.DiscoveryListener {
             override fun onStartDiscoveryFailed(serviceType: String, code: Int) {
-                Log.e(TAG, "Discovery failed to start: $code")
+                AppLog.e("NSD discovery failed to start: $code")
                 discoveryListener = null
             }
             override fun onStopDiscoveryFailed(serviceType: String, code: Int) {
-                Log.e(TAG, "Discovery failed to stop: $code")
+                AppLog.e("NSD discovery failed to stop: $code")
             }
             override fun onDiscoveryStarted(serviceType: String) {
-                Log.d(TAG, "Discovery started")
+                AppLog.d("NSD discovery started")
             }
             override fun onDiscoveryStopped(serviceType: String) {
-                Log.d(TAG, "Discovery stopped")
+                AppLog.d("NSD discovery stopped")
                 discoveryListener = null
             }
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                Log.d(TAG, "Service found: ${serviceInfo.serviceName}")
+                AppLog.d("NSD service found: ${serviceInfo.serviceName}")
                 resolveService(serviceInfo, onFound)
             }
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-                Log.d(TAG, "Service lost: ${serviceInfo.serviceName}")
+                AppLog.d("NSD service lost: ${serviceInfo.serviceName}")
                 onLost(serviceInfo.serviceName)
             }
         }
@@ -115,26 +109,22 @@ class NsdHelper(private val context: Context) {
 
     fun stopDiscovery() {
         discoveryListener?.let {
-            try { nsdManager.stopServiceDiscovery(it) } catch (e: Exception) { Log.w(TAG, e) }
+            try { nsdManager.stopServiceDiscovery(it) } catch (e: Exception) { AppLog.w("NSD stop error: ${e.message}") }
             discoveryListener = null
         }
     }
 
-    /** Stop both registration and discovery. */
     fun stopAll() {
         unregisterService()
         stopDiscovery()
     }
 
-    // ─── Internal ──────────────────────────────────────────────────────────
+    // ─── Internal ───────────────────────────────────────────────────────────
 
-    private fun resolveService(
-        serviceInfo: NsdServiceInfo,
-        onResolved: (DiscoveredCamera) -> Unit
-    ) {
+    private fun resolveService(serviceInfo: NsdServiceInfo, onResolved: (DiscoveredCamera) -> Unit) {
         nsdManager.resolveService(serviceInfo, object : NsdManager.ResolveListener {
             override fun onResolveFailed(info: NsdServiceInfo, code: Int) {
-                Log.e(TAG, "Resolve failed for ${info.serviceName}: $code")
+                AppLog.e("NSD resolve failed for ${info.serviceName}: $code")
             }
             override fun onServiceResolved(info: NsdServiceInfo) {
                 val host = info.host?.hostAddress ?: return
@@ -144,7 +134,7 @@ class NsdHelper(private val context: Context) {
                     host = host,
                     port = info.port
                 )
-                Log.d(TAG, "Resolved: $camera")
+                AppLog.d("NSD resolved: $camera")
                 onResolved(camera)
             }
         })

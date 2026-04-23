@@ -1,7 +1,5 @@
 package com.example.phonecamera.streamer
 
-import android.view.SurfaceHolder
-import com.pedro.library.view.OpenGlView
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -22,19 +20,21 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.phonecamera.ui.theme.*
+import com.pedro.library.view.OpenGlView
 
 @Composable
 fun StreamerScreen(
@@ -44,62 +44,59 @@ fun StreamerScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // Force Landscape orientation & Immersive Mode for Streamer
     val context = LocalContext.current
     val view = LocalView.current
+
+    // Chuyển sang landscape và ẩn system bar khi vào màn hình
     DisposableEffect(Unit) {
         val activity = context as? android.app.Activity
         activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
-        
-        // Hide System UI
+
         val window = activity?.window
         if (window != null) {
-            val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            WindowCompat.getInsetsController(window, view).apply {
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                hide(WindowInsetsCompat.Type.systemBars())
+            }
         }
 
         onDispose {
+            viewModel.releaseCamera()
             activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            val windowDispose = activity?.window
-            if (windowDispose != null) {
-                WindowCompat.getInsetsController(windowDispose, view).show(WindowInsetsCompat.Type.systemBars())
-                val lp = windowDispose.attributes
-                lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-                windowDispose.attributes = lp
+            activity?.window?.let { w ->
+                WindowCompat.getInsetsController(w, view).show(WindowInsetsCompat.Type.systemBars())
+                w.attributes = w.attributes.also { it.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
             }
         }
     }
 
+    // Dừng stream khi app bị đưa xuống nền
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        viewModel.stopStream()
+    }
+
+    // Auto-dim màn hình sau 30 giây không tương tác
     var isDimmed by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    // Auto-dim after 30 seconds of inactivity
     LaunchedEffect(lastInteractionTime) {
         kotlinx.coroutines.delay(30_000L)
         isDimmed = true
     }
 
-    // Modify physical window brightness when dimmed
+    // Điều chỉnh độ sáng thực tế của màn hình
     DisposableEffect(isDimmed) {
         val window = (context as? android.app.Activity)?.window
-        if (window != null) {
-            val lp = window.attributes
-            if (isDimmed) {
-                lp.screenBrightness = 0.01f // Minimum brightness
-            } else {
-                lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE // Restore
-            }
-            window.attributes = lp
+        window?.attributes = window?.attributes?.also {
+            it.screenBrightness = if (isDimmed) 0.01f else android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
         }
         onDispose {}
     }
 
-    // Show error snackbar
+    // Hiện snackbar khi có lỗi
     LaunchedEffect(uiState.errorMessage) {
-        uiState.errorMessage?.let { msg ->
-            snackbarHostState.showSnackbar(message = msg, duration = SnackbarDuration.Long)
+        uiState.errorMessage?.let {
+            snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Long)
             viewModel.dismissError()
         }
     }
@@ -112,7 +109,7 @@ fun StreamerScreen(
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         if (event.changes.any { it.pressed }) {
-                            if (isDimmed) isDimmed = false
+                            isDimmed = false
                             lastInteractionTime = System.currentTimeMillis()
                         }
                     }
@@ -120,36 +117,28 @@ fun StreamerScreen(
             }
     ) {
         Scaffold(
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
-                Snackbar(
-                    modifier = Modifier.padding(12.dp),
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    dismissAction = {
-                        TextButton(onClick = { data.dismiss() }) {
-                            Text("Đóng", color = MaterialTheme.colorScheme.error)
+            snackbarHost = {
+                SnackbarHost(snackbarHostState) { data ->
+                    Snackbar(
+                        modifier = Modifier.padding(12.dp),
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        dismissAction = {
+                            TextButton(onClick = { data.dismiss() }) {
+                                Text("Đóng", color = MaterialTheme.colorScheme.error)
+                            }
                         }
-                    }
-                ) {
-                    Text(data.visuals.message)
+                    ) { Text(data.visuals.message) }
                 }
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // ─── Main Content (Landscape Row) ───
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { padding ->
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
+                    .fillMaxSize()
+                    .padding(padding)
             ) {
-                // ─── Camera Preview (65% width) ───
+                // ─── Camera Preview (65%) ────────────────────────────────────
                 Box(
                     modifier = Modifier
                         .weight(0.65f)
@@ -159,14 +148,13 @@ fun StreamerScreen(
                     AndroidView(
                         factory = { ctx ->
                             OpenGlView(ctx).also { glView ->
-                                // post{} ensures the view is fully laid out before attaching
-                                glView.post { viewModel.attachCameraToService(glView) }
+                                glView.post { viewModel.attachCamera(glView) }
                             }
                         },
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Overlay Controls (Top Area)
+                    // Nút điều khiển phía trên
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -174,55 +162,44 @@ fun StreamerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Back Button
                         IconButton(
                             onClick = {
                                 if (uiState.isStreaming) viewModel.stopStream()
                                 onBack()
                             },
-                            modifier = Modifier
-                                .background(OverlayDark, RoundedCornerShape(50))
+                            modifier = Modifier.background(OverlayDark, RoundedCornerShape(50))
                         ) {
                             Icon(Icons.Filled.ArrowBack, "Quay lại", tint = Color.White)
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Dim Screen Button
                             IconButton(
                                 onClick = { isDimmed = true },
-                                modifier = Modifier
-                                    .background(OverlayDark, RoundedCornerShape(50))
+                                modifier = Modifier.background(OverlayDark, RoundedCornerShape(50))
                             ) {
                                 Icon(Icons.Filled.VisibilityOff, "Tắt màn hình", tint = TextSecondary)
                             }
-
-                            // Flip Camera Button
                             IconButton(
                                 onClick = { viewModel.switchCamera() },
-                                modifier = Modifier
-                                    .background(OverlayDark, RoundedCornerShape(50))
+                                modifier = Modifier.background(OverlayDark, RoundedCornerShape(50))
                             ) {
                                 Icon(Icons.Filled.FlipCameraAndroid, "Lật Camera", tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
 
-                    // Live indicator
-                    this@Row.AnimatedVisibility(
+                    // Badge LIVE
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = uiState.isStreaming,
                         modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
-                        LiveBadge()
-                    }
+                        enter = fadeIn(), exit = fadeOut()
+                    ) { LiveBadge() }
 
-                    // Resolution overlay when not streaming
-                    this@Row.AnimatedVisibility(
+                    // Hiện độ phân giải đang chọn khi chưa phát
+                    androidx.compose.animation.AnimatedVisibility(
                         visible = !uiState.isStreaming,
                         modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                        enter = fadeIn(),
-                        exit = fadeOut()
+                        enter = fadeIn(), exit = fadeOut()
                     ) {
                         Text(
                             text = uiState.selectedResolution.label,
@@ -235,7 +212,7 @@ fun StreamerScreen(
                     }
                 }
 
-                // ─── Control Panel (35% width) ───
+                // ─── Control Panel (35%) ─────────────────────────────────────
                 Column(
                     modifier = Modifier
                         .weight(0.35f)
@@ -244,7 +221,7 @@ fun StreamerScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // Resolution chips (disabled while streaming)
+                    // Chọn độ phân giải
                     Column {
                         Text(
                             text = "Chất lượng video",
@@ -253,19 +230,16 @@ fun StreamerScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Resolution.entries.forEach { resolution ->
-                                val selected = uiState.selectedResolution == resolution
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Resolution.entries.forEach { res ->
+                                val selected = uiState.selectedResolution == res
                                 FilterChip(
                                     selected = selected,
                                     enabled = !uiState.isStreaming,
-                                    onClick = { viewModel.selectResolution(resolution) },
+                                    onClick = { viewModel.selectResolution(res) },
                                     label = {
                                         Text(
-                                            text = resolution.label,
+                                            text = res.label,
                                             fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
                                             fontSize = 12.sp,
                                             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
@@ -273,7 +247,7 @@ fun StreamerScreen(
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
                                         enabled = !uiState.isStreaming,
@@ -288,21 +262,22 @@ fun StreamerScreen(
                         }
                     }
 
-                    // RTSP URL display
+                    // RTSP URL
                     RtspUrlCard(
                         url = uiState.rtspUrl,
                         onCopy = { clipboard.setText(AnnotatedString(uiState.rtspUrl)) }
                     )
 
-                    // Start / Stop button
+                    // Danh sách máy đang xem
+                    ViewersCard(viewers = uiState.connectedViewers)
+
+                    // Nút Bắt đầu / Dừng phát
                     Button(
                         onClick = {
                             if (uiState.isStreaming) viewModel.stopStream()
                             else viewModel.startStream()
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = if (uiState.isStreaming) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
@@ -322,22 +297,19 @@ fun StreamerScreen(
                             fontSize = 13.sp
                         )
                     }
-                    }
                 }
             }
-        } // End of Scaffold content padding
+        }
 
-        // ─── Black Overlay for Battery Saving ───
-        AnimatedVisibility(
+        // Overlay đen tiết kiệm pin
+        androidx.compose.animation.AnimatedVisibility(
             visible = isDimmed,
             enter = fadeIn(animationSpec = tween(800)),
             exit = fadeOut(animationSpec = tween(300)),
             modifier = Modifier.fillMaxSize()
         ) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black),
+                modifier = Modifier.fillMaxSize().background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -347,13 +319,50 @@ fun StreamerScreen(
                 )
             }
         }
-    } // End of outer Box
-} // End of StreamerScreen
+    }
+}
 
-// StreamerTopBar removed to save vertical space.
+@Composable
+private fun ViewersCard(viewers: List<String>) {
+    val isEmpty = viewers.isEmpty()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (isEmpty) Icons.Outlined.Visibility else Icons.Filled.Visibility,
+            contentDescription = null,
+            tint = if (isEmpty) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column {
+            Text(
+                text = if (isEmpty) "Chưa có ai xem" else "Đang xem: ${viewers.size} thiết bị",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isEmpty) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            if (viewers.isNotEmpty()) {
+                Text(
+                    text = viewers.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun LiveBadge() {
+
     val infiniteTransition = rememberInfiniteTransition(label = "live_blink")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 1f, targetValue = 0.3f,
@@ -369,11 +378,7 @@ private fun LiveBadge() {
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(RedError.copy(alpha = alpha), RoundedCornerShape(50))
-        )
+        Box(modifier = Modifier.size(8.dp).background(RedError.copy(alpha = alpha), RoundedCornerShape(50)))
         Spacer(modifier = Modifier.width(6.dp))
         Text("LIVE", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
     }
@@ -382,7 +387,6 @@ private fun LiveBadge() {
 @Composable
 private fun RtspUrlCard(url: String, onCopy: () -> Unit) {
     var copied by remember { mutableStateOf(false) }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -392,34 +396,13 @@ private fun RtspUrlCard(url: String, onCopy: () -> Unit) {
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = Icons.Outlined.Link,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp)
-        )
+        Icon(Icons.Outlined.Link, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "URL để kết nối", 
-                style = MaterialTheme.typography.labelSmall, 
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = url,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.ExtraBold
-            )
+            Text("URL để kết nối", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+            Text(url, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
         }
-        IconButton(
-            onClick = {
-                onCopy()
-                copied = true
-            },
-            modifier = Modifier.size(36.dp)
-        ) {
+        IconButton(onClick = { onCopy(); copied = true }, modifier = Modifier.size(36.dp)) {
             Icon(
                 imageVector = if (copied) Icons.Filled.Check else Icons.Outlined.ContentCopy,
                 contentDescription = "Sao chép URL",

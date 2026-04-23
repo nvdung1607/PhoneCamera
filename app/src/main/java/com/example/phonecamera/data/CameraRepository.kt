@@ -20,17 +20,10 @@ data class CameraConfig(
     val name: String,
     val host: String,
     val port: Int = 8080,
-    val username: String = "",
-    val password: String = ""
+    /** true nếu camera này là điện thoại chạy ứng dụng Phone Camera (thêm qua NSD) */
+    val isPhoneCamera: Boolean = false
 ) {
-    /** Returns a fully formed RTSP URL from this config */
-    fun toRtspUrl(): String {
-        return if (username.isNotBlank()) {
-            "rtsp://$username:$password@$host:$port"
-        } else {
-            "rtsp://$host:$port"
-        }
-    }
+    fun toRtspUrl() = "rtsp://$host:$port"
 }
 
 class CameraRepository(private val context: Context) {
@@ -43,27 +36,17 @@ class CameraRepository(private val context: Context) {
 
     val camerasFlow: Flow<List<CameraConfig>> = context.dataStore.data.map { prefs ->
         val raw = prefs[CAMERAS_KEY] ?: return@map emptyList()
-        try {
-            json.decodeFromString<List<CameraConfig>>(raw)
-        } catch (e: Exception) {
-            emptyList()
-        }
+        try { json.decodeFromString<List<CameraConfig>>(raw) } catch (e: Exception) { emptyList() }
     }
 
     suspend fun saveCamera(config: CameraConfig) {
         context.dataStore.edit { prefs ->
             val current = try {
-                val raw = prefs[CAMERAS_KEY] ?: "[]"
-                json.decodeFromString<MutableList<CameraConfig>>(raw)
-            } catch (e: Exception) {
-                mutableListOf()
-            }
+                json.decodeFromString<MutableList<CameraConfig>>(prefs[CAMERAS_KEY] ?: "[]")
+            } catch (e: Exception) { mutableListOf() }
+
             val index = current.indexOfFirst { it.id == config.id }
-            if (index >= 0) {
-                current[index] = config
-            } else {
-                current.add(config)
-            }
+            if (index >= 0) current[index] = config else current.add(config)
             prefs[CAMERAS_KEY] = json.encodeToString<List<CameraConfig>>(current)
         }
     }
@@ -71,11 +54,9 @@ class CameraRepository(private val context: Context) {
     suspend fun deleteCamera(id: Int) {
         context.dataStore.edit { prefs ->
             val current = try {
-                val raw = prefs[CAMERAS_KEY] ?: "[]"
-                json.decodeFromString<MutableList<CameraConfig>>(raw)
-            } catch (e: Exception) {
-                mutableListOf()
-            }
+                json.decodeFromString<MutableList<CameraConfig>>(prefs[CAMERAS_KEY] ?: "[]")
+            } catch (e: Exception) { mutableListOf() }
+
             current.removeAll { it.id == id }
             prefs[CAMERAS_KEY] = json.encodeToString<List<CameraConfig>>(current)
         }

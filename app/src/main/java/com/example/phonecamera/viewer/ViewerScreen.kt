@@ -211,6 +211,7 @@ fun ViewerScreen(
                 onRetryClick = { viewModel.retryCamera(i) },
                 onPlayerReady = { viewModel.onPlayerReady(i) },
                 onPlayerError = { err -> viewModel.onPlayerError(i, err) },
+                onSetRemoteQuality = if (uiState.cameras.getOrNull(i)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(i, h) } else null,
                 modifier = modifier
             )
         } else if (isLandscape) {
@@ -234,16 +235,14 @@ fun ViewerScreen(
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 0,
                             onToggleAudio = { viewModel.toggleAudio(0) },
-                            onFullscreenClick = { 
-                                wasInGridBeforeFullscreen = isLandscape
-                                fullscreenSlot = 0 
-                            },
+                            onFullscreenClick = { wasInGridBeforeFullscreen = isLandscape; fullscreenSlot = 0 },
                             isFullscreen = false,
                             onAddClick = { dialogSlot = 0 },
                             onEditClick = { dialogSlot = 0 },
                             onRetryClick = { viewModel.retryCamera(0) },
                             onPlayerReady = { viewModel.onPlayerReady(0) },
                             onPlayerError = { err -> viewModel.onPlayerError(0, err) },
+                            onSetRemoteQuality = if (uiState.cameras.getOrNull(0)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(0, h) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
                         CameraCell(
@@ -253,16 +252,14 @@ fun ViewerScreen(
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 1,
                             onToggleAudio = { viewModel.toggleAudio(1) },
-                            onFullscreenClick = { 
-                                wasInGridBeforeFullscreen = isLandscape
-                                fullscreenSlot = 1 
-                            },
+                            onFullscreenClick = { wasInGridBeforeFullscreen = isLandscape; fullscreenSlot = 1 },
                             isFullscreen = false,
                             onAddClick = { dialogSlot = 1 },
                             onEditClick = { dialogSlot = 1 },
                             onRetryClick = { viewModel.retryCamera(1) },
                             onPlayerReady = { viewModel.onPlayerReady(1) },
                             onPlayerError = { err -> viewModel.onPlayerError(1, err) },
+                            onSetRemoteQuality = if (uiState.cameras.getOrNull(1)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(1, h) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
                     }
@@ -275,16 +272,14 @@ fun ViewerScreen(
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 2,
                             onToggleAudio = { viewModel.toggleAudio(2) },
-                            onFullscreenClick = { 
-                                wasInGridBeforeFullscreen = isLandscape
-                                fullscreenSlot = 2 
-                            },
+                            onFullscreenClick = { wasInGridBeforeFullscreen = isLandscape; fullscreenSlot = 2 },
                             isFullscreen = false,
                             onAddClick = { dialogSlot = 2 },
                             onEditClick = { dialogSlot = 2 },
                             onRetryClick = { viewModel.retryCamera(2) },
                             onPlayerReady = { viewModel.onPlayerReady(2) },
                             onPlayerError = { err -> viewModel.onPlayerError(2, err) },
+                            onSetRemoteQuality = if (uiState.cameras.getOrNull(2)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(2, h) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
                         CameraCell(
@@ -294,16 +289,14 @@ fun ViewerScreen(
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 3,
                             onToggleAudio = { viewModel.toggleAudio(3) },
-                            onFullscreenClick = { 
-                                wasInGridBeforeFullscreen = isLandscape
-                                fullscreenSlot = 3 
-                            },
+                            onFullscreenClick = { wasInGridBeforeFullscreen = isLandscape; fullscreenSlot = 3 },
                             isFullscreen = false,
                             onAddClick = { dialogSlot = 3 },
                             onEditClick = { dialogSlot = 3 },
                             onRetryClick = { viewModel.retryCamera(3) },
                             onPlayerReady = { viewModel.onPlayerReady(3) },
                             onPlayerError = { err -> viewModel.onPlayerError(3, err) },
+                            onSetRemoteQuality = if (uiState.cameras.getOrNull(3)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(3, h) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
                     }
@@ -347,6 +340,7 @@ fun ViewerScreen(
                             onRetryClick = { viewModel.retryCamera(index) },
                             onPlayerReady = { viewModel.onPlayerReady(index) },
                             onPlayerError = { err -> viewModel.onPlayerError(index, err) },
+                            onSetRemoteQuality = if (config?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(index, h) } else null,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
