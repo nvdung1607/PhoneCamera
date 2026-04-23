@@ -1,6 +1,9 @@
 package com.example.phonecamera.home
 
 import android.Manifest
+import android.app.Activity
+import android.content.pm.ActivityInfo
+import androidx.compose.runtime.DisposableEffect
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -45,6 +48,14 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
+    
+    // Ensure portrait orientation when entering/staying in HomeScreen
+    DisposableEffect(Unit) {
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
+        onDispose { }
+    }
+
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val permissionsToRequest = buildList {
