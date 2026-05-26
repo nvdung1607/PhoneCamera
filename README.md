@@ -1,149 +1,59 @@
-# 📷 Phone Camera
+# 📷 Phone Camera - Hệ thống Camera Giám sát Nội bộ Không Dây
 
-> Biến điện thoại Android thành **hệ thống camera an ninh nội bộ** — phát và xem luồng RTSP qua WiFi mà không cần internet.
-> Stream chỉ hoạt động khi app đang mở trên màn hình.
+> **Biến điện thoại Android thành hệ thống camera an ninh nội bộ thông minh** — phát và xem luồng RTSP chất lượng cao qua mạng WiFi nội bộ (LAN) mà không cần kết nối internet hay máy chủ đám mây trung gian.
 
----
-
-## Mục lục
-
-1. [Tính năng](#1-tính-năng)
-2. [Công nghệ](#2-công-nghệ)
-3. [Cấu trúc thư mục](#3-cấu-trúc-thư-mục)
-4. [Màn hình](#4-màn-hình)
-5. [Kiến trúc MVVM](#5-kiến-trúc-mvvm)
-6. [Sơ đồ Use Case](#6-sơ-đồ-use-case)
-7. [Sơ đồ Lớp](#7-sơ-đồ-lớp)
-8. [Sơ đồ Tuần tự](#8-sơ-đồ-tuần-tự)
-9. [Giao thức ControlServer](#9-giao-thức-controlserver-tcp-8081)
-10. [Vòng đời tài nguyên](#10-vòng-đời-tài-nguyên)
-11. [Quyền hệ thống](#11-quyền-hệ-thống)
-12. [Luồng khởi động](#12-luồng-khởi-động)
-13. [Ghi chú cho developer](#13-ghi-chú-cho-developer)
+Ứng dụng được thiết kế tối ưu hóa cho hiệu năng cao, độ trễ cực thấp (~1s) và khả năng tự động khám phá thiết bị (Zero Configuration) trong cùng mạng WiFi. Đây là một dự án hoàn hảo để chứng minh năng lực về lập trình Android hiện đại (Modern Android Development), xử lý Multimedia (Video Streaming), Networking (TCP/IP socket, mDNS) và Quản lý luồng xử lý bất đồng bộ (Kotlin Coroutines & Flow).
 
 ---
 
-## 1. Tính năng
+## 📌 Mục lục
 
-| Vai trò | Màn hình | Chức năng |
+1. [Các Tính Năng Nổi Bật](#-các-tính-năng-nổi-bật)
+2. [Kiến Trúc & Công Nghệ](#-kiến-trúc--công-nghệ)
+3. [Thiết Kế Luồng & Sơ Đồ Kiến Trúc](#-thiết-kế-luồng--sơ-đồ-kiến-trúc)
+4. [Giao Thức Điều Khiển ControlServer (TCP Port 8081)](#-giao-thức-điều-khuyển-controlserver-tcp-port-8081)
+5. [Giải Pháp Tối Ưu Độ Trễ & Xử Lý Frame (Low-Latency Video)](#-giải-pháp-tối-ưu-độ-trễ--xử-lý-frame-low-latency-video)
+6. [Cơ Chế Auto-Discovery (mDNS/NSD)](#-cơ-chế-auto-discovery-mdnsnsd)
+7. [Quản Lý Vòng Đời & Tránh Rò Rỉ Bộ Nhớ (Memory Leaks)](#-quản-lý-vòng-đời--tránh-rò-rỉ-bộ-nhớ-memory-leaks)
+8. [Cấu Trúc Thư Mục Dự Án](#-cấu-trúc-thư-mục-dự-án)
+9. [🎓 Bộ Câu Hỏi Phỏng Vấn "Trúng Tủ" (Interview Cheat Sheet)](#-bộ-câu-hỏi-phỏng-vấn-trúng-tủ-interview-cheat-sheet)
+10. [Hướng Dẫn Cài Đặt & Chạy Thử](#-hướng-dẫn-cài-đặt--chạy-thử)
+
+---
+
+## ⚡ Các Tính Năng Nổi Bật
+
+| Vai trò | Giao diện | Chức năng chi tiết & Công nghệ cốt lõi |
 |---|---|---|
-| 📹 **Máy Quay** | Streamer | Phát RTSP từ camera điện thoại qua WiFi nội bộ |
-| 🖥️ **Màn hình Xem** | Viewer | Xem đồng thời tối đa 4 camera, điều khiển chất lượng từ xa |
-
-**Chi tiết:**
-- Tự động phát hiện camera cùng mạng qua **mDNS** (không cần nhập IP thủ công)
-- Viewer có thể đổi chất lượng stream (**360p / 720p / 1080p**) của Streamer từ xa
-- Streamer hiển thị tên thiết bị đang xem theo thời gian thực
-- Chế độ auto-dim màn hình tiết kiệm pin khi dùng làm camera an ninh
-- Hỗ trợ cả **TCP** và **UDP** cho RTSP (chuyển đổi từ Viewer)
-- ExoPlayer cấu hình low-latency (buffer tối thiểu ~1s)
+| 📹 **Máy Quay** (Streamer) | Landscape, Immersive | - Phát trực tiếp luồng RTSP (H.264/AAC) sử dụng Camera2 API.<br>- Tự động hạ độ sáng màn hình (Auto-dim) về mức tối thiểu sau 30s không tương tác để tiết kiệm pin & chống chai màn hình.<br>- Hiển thị số lượng và tên thiết bị đang xem stream theo thời gian thực.<br>- Thay đổi nóng camera trước/sau.<br>- Hỗ trợ chuyển đổi nhanh hoặc nhận lệnh đổi độ phân giải từ xa (360p, 720p, 1080p). |
+| 🖥️ **Màn hình Xem** (Viewer) | Grid 2×2, Fullscreen | - Hỗ trợ xem đồng thời tối đa 4 camera theo lưới thời gian thực.<br>- Tự động dò tìm camera đang phát cùng mạng LAN thông qua mDNS (Zero-configuration).<br>- Điều khiển chất lượng luồng phát của camera đích từ xa bằng custom TCP protocol.<br>- Hỗ trợ đo lường FPS thực tế (actual FPS) hiển thị trên từng ô phát.<br>- Chuyển đổi linh hoạt giữa giao thức vận chuyển RTSP (TCP / UDP).<br>- Quản lý lưu trữ thông tin camera lưu động qua Jetpack DataStore. |
 
 ---
 
-## 2. Công nghệ
+## 🛠️ Kiến Trúc & Công Nghệ
 
-| Thành phần | Chi tiết |
-|---|---|
-| **Ngôn ngữ** | Kotlin |
-| **Min SDK** | API 26 (Android 8.0) |
-| **UI** | Jetpack Compose + Material 3 |
-| **Kiến trúc** | MVVM + Unidirectional Data Flow |
-| **State** | `StateFlow` + `collectAsStateWithLifecycle()` |
-| **Async** | Kotlin Coroutines (`viewModelScope`, `Dispatchers.IO/Main`) |
-| **Phát RTSP** | `RtspServerCamera2` (pedroSG94/RTSP-Server 1.4.1 + RootEncoder 2.7.2) |
-| **Xem RTSP** | `Media3 ExoPlayer 1.5.0` với `RtspMediaSource` |
-| **Discovery** | `Android NsdManager` (mDNS, service type `_rtspguard._tcp`) |
-| **Control** | `ControlServer` — TCP server tự viết trên port 8081 |
-| **Lưu trữ** | `DataStore Preferences` + `kotlinx.serialization` (JSON) |
-| **Quyền** | `Accompanist Permissions` |
-| **Navigation** | `Navigation Compose` |
-| **Logging** | `AppLog` — wrapper tập trung, tag `"PhoneCamera"` |
+Dự án áp dụng chặt chẽ các nguyên lý của **Modern Android Development (MAD)**:
 
-### Design Pattern áp dụng
-- **Repository Pattern** — `CameraRepository` ẩn chi tiết DataStore khỏi ViewModel
-- **Sealed Class** — `PlayerState`, `ControlServer.Command` mô hình hóa trạng thái an toàn
-- **Observer Pattern** — UI subscribe `StateFlow` qua `collectAsStateWithLifecycle()`
-- **Custom TCP Protocol** — `ControlServer` nhận lệnh text-based từ Viewer
+### 1. Technology Stack
+*   **UI Layer:** Jetpack Compose kết hợp với Material 3, tối ưu thiết kế phản hồi (Responsive Grid), hỗ trợ cả chế độ Portrait và Landscape.
+*   **Architecture:** MVVM (Model-View-ViewModel) kết hợp với mô hình dòng dữ liệu một chiều **Unidirectional Data Flow (UDF)**.
+*   **Reactive Programming:** Sử dụng Kotlin Coroutines để xử lý tác vụ nền nặng (TCP Server, NSD Discovery) kết hợp với `StateFlow` và `collectAsStateWithLifecycle()` nhằm quan sát trạng thái của ứng dụng an toàn theo vòng đời UI.
+*   **Media Streaming:**
+    *   *Streamer:* Tích hợp thư viện `RootEncoder` (dựa trên `pedroSG94/RTSP-Server`) thực hiện mã hóa phần cứng phần cứng (H.264/AAC) và cung cấp RTSP Server trực tiếp trên điện thoại.
+    *   *Viewer:* Sử dụng `Jetpack Media3 ExoPlayer` với module mở rộng `RtspMediaSource`.
+*   **Data Persistence:** `Jetpack DataStore Preferences` lưu trữ danh sách cấu hình camera dưới định dạng JSON (sử dụng `kotlinx.serialization`).
+*   **Network Discovery:** Android `NsdManager` (Network Service Discovery) phục vụ cơ chế mDNS tự khám phá dịch vụ ở port `:8080` (Service type: `_rtspguard._tcp`).
+
+### 2. Design Patterns Áp Dụng
+*   **Repository Pattern:** Lớp `CameraRepository` bao bọc lấy Jetpack DataStore để cung cấp luồng dữ liệu (`Flow<List<CameraConfig>>`) giúp giữ code sạch và phân chia tầng lớp dữ liệu rõ ràng.
+*   **Sealed Class / Sealed Interface State:** Mô hình hóa các trạng thái bất định như trạng thái Player (`PlayerState: Idle, Loading, Playing, Error`) và các lệnh điều khiển (`ControlServer.Command`).
+*   **Observer Pattern:** Giao diện đăng ký nhận các biến đổi dữ liệu thông qua StateFlow của Viewmodel.
 
 ---
 
-## 3. Cấu trúc thư mục
+## 📐 Thiết Kế Luồng & Sơ Đồ Kiến Trúc
 
-```
-app/src/main/java/com/example/phonecamera/
-│
-├── MainActivity.kt              # Activity duy nhất, setup NavHost
-├── navigation/
-│   └── Screen.kt                # sealed class: Home | Streamer | Viewer
-│
-├── data/
-│   ├── CameraRepository.kt      # CameraConfig model + DataStore CRUD
-│   └── nsd/
-│       ├── NsdHelper.kt         # Đăng ký & khám phá mDNS service
-│       └── DiscoveredCamera.kt  # Data class camera tìm được qua NSD
-│
-├── home/
-│   ├── HomeScreen.kt            # Màn hình chọn vai trò
-│   └── HomeViewModel.kt         # Quản lý trạng thái quyền
-│
-├── streamer/
-│   ├── StreamerScreen.kt        # UI phát camera (landscape)
-│   ├── StreamerViewModel.kt     # Quản lý RtspServerCamera2, ControlServer, NSD
-│   └── ControlServer.kt         # TCP server port 8081, nhận lệnh từ Viewer
-│
-├── viewer/
-│   ├── ViewerScreen.kt          # UI xem camera (portrait/landscape/fullscreen)
-│   ├── ViewerViewModel.kt       # Quản lý 4 slot, NSD discovery, gửi lệnh TCP
-│   └── components/
-│       ├── CameraCell.kt        # Ô camera: ExoPlayer + nút điều khiển
-│       ├── AddEditCameraDialog.kt
-│       └── DiscoveryBottomSheet.kt
-│
-├── ui/theme/
-│   ├── Color.kt                 # Bảng màu Dark/Light + overlay aliases
-│   ├── Theme.kt                 # MaterialTheme Dark/Light scheme
-│   └── Type.kt                  # Typography
-│
-└── utils/
-    └── AppLog.kt                # Centralized logger
-```
-
----
-
-## 4. Màn hình
-
-### Home Screen
-- Luôn **portrait**
-- 2 thẻ bấm: **Máy Quay** / **Màn hình Xem**
-- Tự động kiểm tra quyền CAMERA + RECORD_AUDIO — thiếu thì disable thẻ Máy Quay
-
-### Streamer Screen
-- Tự chuyển **landscape** + ẩn system bar (immersive mode)
-- Layout: **65% camera preview** | **35% control panel**
-- Control panel bao gồm:
-  - Chip chọn độ phân giải (locked khi đang phát, cập nhật khi Viewer đổi từ xa)
-  - RTSP URL + nút Copy
-  - Card "Đang được xem": hiện tên thiết bị Viewer đang kết nối
-  - Nút Bắt đầu / Dừng phát
-- Nút lật camera trước/sau
-- Auto-dim màn hình sau 30s không tương tác (độ sáng 0.01)
-- Badge **LIVE** nhấp nháy khi stream đang chạy
-- **Stream tự dừng khi app vào background** (Lifecycle ON_PAUSE)
-
-### Viewer Screen
-- **Portrait**: LazyColumn cuộn dọc
-- **Landscape**: lưới 2×2 tỉ lệ 16:9
-- **Fullscreen**: xem 1 camera toàn màn hình
-- Toolbar: nút TCP/UDP toggle, badge đếm camera phát hiện, nút vào landscape
-- Mỗi ô camera:
-  - Chấm trạng thái (xanh = đang phát, vàng = đang kết nối)
-  - FPS badge thực tế + độ phân giải
-  - Nút **HD** 🎥 (chỉ với Phone Camera): dropdown 360p / 720p / 1080p → gửi lệnh đổi chất lượng
-  - Nút âm thanh, tải lại, toàn màn hình, sửa
-
----
-
-## 5. Kiến trúc MVVM
+### 1. Sơ đồ Kiến trúc MVVM & Data Flow
 
 ```mermaid
 graph TD
@@ -186,172 +96,12 @@ graph TD
     CS -->|Command events| SVM
 ```
 
-**Quy tắc:**
-- `@Composable` chỉ **đọc** StateFlow và **gọi hàm** ViewModel — không tự xử lý logic
-- ViewModel giữ `private val _uiState = MutableStateFlow(...)`, expose `val uiState = _uiState.asStateFlow()`
-- Mọi side-effect chạy trong `viewModelScope.launch {}`
-
 ---
 
-## 6. Sơ đồ Use Case
+### 2. Sơ đồ Tuần tự (Sequence Diagrams)
 
-```mermaid
-flowchart LR
-    U([👤 Người dùng])
-
-    U --> A[Chọn vai trò]
-    U --> B[Cấp quyền]
-
-    A --> C[Máy Quay]
-    A --> D[Màn hình Xem]
-
-    C --> C1[Chọn độ phân giải]
-    C --> C2[Bắt đầu phát]
-    C --> C3[Lật camera]
-    C --> C4[Tắt màn hình tiết kiệm pin]
-    C2 --> C5[Dừng phát]
-
-    D --> D1[Thêm camera thủ công]
-    D --> D2[Quét mạng tự động NSD]
-    D --> D3[Xem camera]
-    D2 --> D4[Thêm 1 chạm]
-    D3 --> D5[Đổi chất lượng từ xa]
-    D3 --> D6[Tắt bật âm thanh]
-    D3 --> D7[Xem toàn màn hình]
-    D3 --> D8[Tải lại camera]
-```
-
----
-
-## 7. Sơ đồ Lớp
-
-```mermaid
-classDiagram
-    class CameraConfig {
-        +id: Int
-        +name: String
-        +host: String
-        +port: Int
-        +isPhoneCamera: Boolean
-        +toRtspUrl() String
-    }
-
-    class DiscoveredCamera {
-        +serviceId: String
-        +displayName: String
-        +host: String
-        +port: Int
-        +rtspUrl: String
-    }
-
-    class CameraRepository {
-        +camerasFlow: Flow~List~CameraConfig~~
-        +saveCamera(config)
-        +deleteCamera(id)
-    }
-
-    class NsdHelper {
-        +SERVICE_TYPE: String$
-        +deviceServiceName() String$
-        +registerService(port)
-        +unregisterService()
-        +discoverServices(onFound, onLost)
-        +stopDiscovery()
-        +stopAll()
-    }
-
-    class ControlServer {
-        +CONTROL_PORT: Int$
-        +port: Int
-        +start(scope, onCommand)
-        +stop()
-    }
-
-    class ControlServerCommand {
-        <<sealed>>
-        Hello
-        Bye
-        SetQuality
-    }
-
-    class Resolution {
-        <<enum>>
-        P360
-        P720
-        P1080
-        +label: String
-        +width: Int
-        +height: Int
-        +bitrateBps: Int
-    }
-
-    class PlayerState {
-        <<sealed>>
-        Idle
-        Loading
-        Playing
-        Error
-    }
-
-    class StreamerUiState {
-        +isStreaming: Boolean
-        +useFrontCamera: Boolean
-        +selectedResolution: Resolution
-        +localIpAddress: String
-        +connectedViewers: List~String~
-        +rtspUrl: String
-    }
-
-    class ViewerUiState {
-        +cameras: List~CameraConfig?~
-        +playerStates: Map~Int, PlayerState~
-        +useTcp: Boolean
-        +discoveredCameras: List~DiscoveredCamera~
-        +discoveryBadgeCount: Int
-    }
-
-    class StreamerViewModel {
-        +uiState: StateFlow~StreamerUiState~
-        +attachCamera(glView)
-        +startStream()
-        +stopStream()
-        +switchCamera()
-        +selectResolution(res)
-        +releaseCamera()
-        -changeQualityRemote(res)
-    }
-
-    class ViewerViewModel {
-        +uiState: StateFlow~ViewerUiState~
-        +saveCamera(config)
-        +deleteCamera(id)
-        +retryCamera(index)
-        +setRemoteQuality(slot, heightP)
-        +toggleTcp()
-        +toggleAudio(slot)
-        +startDiscovery()
-    }
-
-    CameraRepository "1" --> "0..*" CameraConfig
-    NsdHelper ..> DiscoveredCamera : produces
-    ControlServer ..> ControlServerCommand : parses
-    StreamerViewModel --> StreamerUiState
-    StreamerViewModel --> NsdHelper
-    StreamerViewModel --> ControlServer
-    StreamerViewModel --> Resolution
-    ViewerViewModel --> ViewerUiState
-    ViewerViewModel --> CameraRepository
-    ViewerViewModel --> NsdHelper
-    ViewerViewModel --> PlayerState
-    ViewerUiState --> PlayerState
-    StreamerUiState --> Resolution
-```
-
----
-
-## 8. Sơ đồ Tuần tự
-
-### 8.1 Phát Camera (Streamer)
+#### A. Luồng Đăng Ký & Phát Camera (Streamer)
+Khi người dùng bật phát camera, hệ thống khởi tạo máy chủ RTSP nội bộ và truyền tải thông tin qua mDNS LAN.
 
 ```mermaid
 sequenceDiagram
@@ -386,7 +136,8 @@ sequenceDiagram
     SVM->>NSD: unregisterService()
 ```
 
-### 8.2 Xem Camera (Viewer)
+#### B. Luồng Tự Khám Phá & Kết Nối (Viewer)
+Thiết bị Viewer quét mạng cục bộ để nhận diện các địa chỉ IP của Streamer mà không cần nhập thủ công.
 
 ```mermaid
 sequenceDiagram
@@ -416,7 +167,8 @@ sequenceDiagram
     VVM-->>VS: spinner ẩn, video hiện
 ```
 
-### 8.3 Đổi Chất lượng từ Viewer
+#### C. Thay Đổi Chất Lượng Stream Từ Xa (Remote Quality Change)
+Luồng tương tác phức tạp nhất: Viewer gửi yêu cầu đổi độ phân giải qua TCP, Streamer khởi tạo lại encoder, sau đó Viewer đồng bộ hóa lại Player.
 
 ```mermaid
 sequenceDiagram
@@ -442,11 +194,12 @@ sequenceDiagram
 
     VVM->>VVM: delay(2000ms) đợi Streamer restart
     VVM->>VVM: retryCamera(0) → Loading
-    Note over VVM: ExoPlayer mới kết nối lại
-    VVM-->>CC: PlayerState.Playing [video chạy lại]
+    Note over VVM: ExoPlayer kết nối lại luồng mới
+    VVM-->>CC: PlayerState.Playing [video chạy lại ở 720p]
 ```
 
-### 8.4 Tracking Viewer (HELLO/BYE)
+#### D. Quản lý trạng thái trực tuyến (HELLO/BYE tracking)
+Streamer biết được Viewer nào đang kết nối và hiển thị lên màn hình thông qua các thông điệp chào mừng và tạm biệt.
 
 ```mermaid
 sequenceDiagram
@@ -460,7 +213,7 @@ sequenceDiagram
     VVM->>TCP: "HELLO Pixel-7"
     TCP->>SVM: Command.Hello("Pixel-7", ip)
     SVM->>SVM: connectedViewers += "Pixel-7"
-    SVM-->>SS: ViewersCard: "Đang xem: 1 thiết bị · Pixel-7"
+    SVM-->>SS: ViewersCard: "Đang xem: Pixel-7"
 
     Note over VVM: onCleared() hoặc player lỗi
     VVM->>TCP: "BYE Pixel-7"
@@ -469,192 +222,195 @@ sequenceDiagram
     SVM-->>SS: ViewersCard: "Chưa có ai xem"
 ```
 
-### 8.5 Auto-discovery mDNS
+---
 
-```mermaid
-sequenceDiagram
-    participant STR as Máy Streamer
-    participant MDNS as Mạng LAN (mDNS)
-    participant VWR as Máy Viewer
+## 📡 Giao Thức Điều Khiển ControlServer (TCP Port 8081)
 
-    STR->>MDNS: startStream() → NsdHelper.registerService(8080)
-    Note over MDNS: Quảng bá _rtspguard._tcp
+Để hỗ trợ giao tiếp hai chiều giữa Viewer và Streamer (vốn giao thức RTSP thuần túy không hỗ trợ tốt các lệnh điều khiển tùy biến), dự án triển khai một **Custom TCP Server** chạy độc lập trên cổng `8081` tại phía Streamer.
 
-    VWR->>MDNS: NsdHelper.discoverServices()
-    MDNS-->>VWR: onServiceFound(serviceInfo)
-    MDNS-->>VWR: onServiceResolved → DiscoveredCamera(host, port)
-    VWR->>VWR: discoveryBadgeCount++
+### 1. Định Dạng Giao Thức (Text-Based Protocol)
+Mỗi phiên kết nối gửi một chuỗi văn bản kết thúc bằng ký tự xuống dòng (`\n`). 
+*   **HELLO `<tên thiết bị>`**: Viewer thông báo đã bắt đầu xem thành công.
+    *   *Mục đích:* Streamer hiển thị danh sách thiết bị đang xem trực tiếp để chủ sở hữu nhận biết được bảo mật thông tin.
+*   **BYE `<tên thiết bị>`**: Viewer thông báo ngừng xem (khi thoát màn hình hoặc tắt ứng dụng).
+    *   *Mục đích:* Giải phóng danh sách kết nối tại máy Streamer.
+*   **SET_QUALITY `<360|720|1080>`**: Viewer yêu cầu thay đổi độ phân giải.
+    *   *Mục đích:* Ra lệnh cho Streamer tắt stream hiện tại, thay đổi cấu hình mã hóa phần cứng của camera và tái khởi động stream mới ở chất lượng được yêu cầu.
 
-    Note over VWR: Người dùng thêm camera 1 chạm
-    VWR->>VWR: saveCamera(isPhoneCamera=true)
-
-    STR->>MDNS: stopStream() → unregisterService()
-    MDNS-->>VWR: onServiceLost(serviceId)
-    VWR->>VWR: PlayerState.Error("Camera đã mất kết nối")
-```
+### 2. Định Dạng Phản Hồi (Responses)
+Server luôn trả về một phản hồi kết thúc bằng `\n` sau khi phân tích lệnh:
+*   `OK`: Lệnh được chấp nhận và thực thi thành công.
+*   `ERROR <lý do>`: Không nhận dạng được lệnh hoặc có lỗi xảy ra trong quá trình thực thi.
 
 ---
 
-## 9. Giao thức ControlServer (TCP :8081)
+## 🎥 Giải Pháp Tối Ưu Độ Trễ & Xử Lý Frame (Low-Latency Video)
 
-ControlServer là một TCP server text-based, chạy trên máy Streamer. Mỗi kết nối là một lệnh + response.
+Trong các ứng dụng giám sát an ninh, độ trễ truyền dữ liệu video (latency) là yếu tố sống còn. Để đạt độ trễ tiệm cận thời gian thực (~1 giây) qua mạng LAN, dự án triển khai các cấu hình kỹ thuật sau:
 
-```mermaid
-sequenceDiagram
-    participant V as Viewer (client)
-    participant S as ControlServer :8081
+### 1. Tối Ưu Bộ Đệm ExoPlayer (Custom LoadControl)
+Mặc định, ExoPlayer cấu hình bộ đệm lớn (khoảng 15s đến 50s) nhằm đảm bảo video phát mượt mà qua các mạng internet không ổn định. Tuy nhiên, cấu hình này sẽ làm tăng độ trễ rất cao đối với RTSP nội bộ. Chúng tôi tùy chỉnh cấu hình `DefaultLoadControl` trong `CameraCell.kt`:
 
-    V->>S: TCP connect
-    V->>S: "HELLO Samsung-Galaxy-S22\n"
-    S-->>V: "OK\n"
-    S->>S: connectedViewers += "Samsung Galaxy S22"
-
-    V->>S: TCP connect
-    V->>S: "SET_QUALITY 720\n"
-    S-->>V: "OK\n"
-    S->>S: changeQualityRemote(P720)
-
-    V->>S: TCP connect
-    V->>S: "BYE Samsung-Galaxy-S22\n"
-    S-->>V: "OK\n"
-    S->>S: connectedViewers.remove(...)
-```
-
-| Lệnh | Format | Ý nghĩa |
-|---|---|---|
-| HELLO | `HELLO <tên máy>` | Viewer bắt đầu phát stream |
-| BYE | `BYE <tên máy>` | Viewer ngừng phát stream |
-| SET_QUALITY | `SET_QUALITY <360\|720\|1080>` | Yêu cầu đổi độ phân giải |
-
-Response luôn là `OK` hoặc `ERROR <lý do>`.
-
----
-
-## 10. Vòng đời Tài nguyên
-
-### StreamerViewModel (Camera + Stream)
-
-```mermaid
-stateDiagram-v2
-    [*] --> Idle : ViewModel init\nloadLocalIp()\ncontrolServer.start()
-
-    Idle --> Preview : attachCamera(glView)\nRtspServerCamera2.startPreview()
-
-    Preview --> Streaming : startStream()\nprepareVideo + prepareAudio\nstartStream() + NSD.register()
-
-    Streaming --> Preview : stopStream()\nNSD.unregister()\n[ON_PAUSE tự động]
-
-    Streaming --> QualityChange : changeQualityRemote(res)\nstopStream() → delay(500ms) → startStream()
-
-    QualityChange --> Streaming : startStream() mới
-
-    Preview --> [*] : releaseCamera()\nstopPreview() + NSD.stopAll()\ncontrolServer.stop()
-```
-
-### ExoPlayer trong CameraCell
-
-```mermaid
-stateDiagram-v2
-    [*] --> Creating : playerState = Loading\nDisposableEffect kích hoạt
-
-    Creating --> Connecting : delay(500ms)\nExoPlayer.Builder\nRtspMediaSource.prepare()
-
-    Connecting --> Playing : STATE_READY\nonPlayerReady()
-
-    Connecting --> Error : PlaybackException\nonPlayerError(msg)
-
-    Playing --> Error : Network lost\nStream ngắt
-
-    Error --> Creating : retryCamera()\nnew attemptId
-
-    Playing --> Creating : setRemoteQuality()\nnew attemptId sau 2s
-
-    Playing --> [*] : onDispose\nplayer.release()
-    Error --> [*] : onDispose\nplayer.release()
-```
-
----
-
-## 11. Quyền Hệ thống
-
-| Quyền | Lý do |
-|---|---|
-| `CAMERA` | Quay video để phát RTSP |
-| `RECORD_AUDIO` | Thu âm trong stream |
-| `INTERNET` | Kết nối RTSP (:8080) và ControlServer (:8081) |
-| `ACCESS_WIFI_STATE` | Đọc địa chỉ IP WiFi hiện tại |
-| `CHANGE_WIFI_MULTICAST_STATE` | Nhận gói mDNS multicast để phát hiện camera |
-
----
-
-## 12. Luồng Khởi động
-
-```mermaid
-flowchart TD
-    A[MainActivity.onCreate] --> B[PhoneCameraTheme]
-    B --> C[NavHost: startDestination = home]
-    C --> D[HomeScreen]
-    D --> E{Người dùng chọn}
-
-    E -->|Máy Quay| F[StreamerScreen]
-    F --> F1[StreamerViewModel.init\nloadLocalIp\ncontrolServer.start]
-    F1 --> F2[AndroidView: OpenGlView]
-    F2 --> F3[glView.post: attachCamera\nRtspServerCamera2\nstartPreview]
-
-    E -->|Màn hình Xem| G[ViewerScreen]
-    G --> G1[ViewerViewModel.init\nrepo.camerasFlow.collect\nnsdHelper.discoverServices]
-    G1 --> G2[4x CameraCell render]
-    G2 --> G3[ExoPlayer: delay 500ms\nRtspMediaSource → prepare]
-    G3 --> G4[STATE_READY → Playing]
-```
-
----
-
-## 13. Ghi chú cho Developer
-
-### `isPhoneCamera` flag
-Camera thêm qua **NSD auto-discovery** tự động có `isPhoneCamera = true`. Chỉ những camera này:
-- Hiển thị nút HD để đổi chất lượng từ xa
-- Gửi lệnh HELLO/BYE đến ControlServer
-
-Camera thêm **thủ công** (nhập IP) có `isPhoneCamera = false` — không hỗ trợ điều khiển từ xa.
-
-### Thread Safety
-`ControlServer` chạy hoàn toàn trên `Dispatchers.IO`. Mọi callback khi nhận lệnh phải dispatch về Main:
 ```kotlin
-// ĐÚNG
-viewModelScope.launch(Dispatchers.Main) {
-    _uiState.update { ... }
+val loadControl = DefaultLoadControl.Builder()
+    // minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs
+    .setBufferDurationsMs(1000, 5000, 500, 1000)
+    .setPrioritizeTimeOverSizeThresholds(true)
+    .build()
+```
+*   `minBufferMs` = 1000: Chỉ cần đệm tối thiểu 1 giây video là player có thể bắt đầu giải mã.
+*   `maxBufferMs` = 5000: Không đệm quá 5 giây để giảm tiêu thụ bộ nhớ và tránh tích lũy độ trễ.
+*   `bufferForPlaybackMs` = 500: Chỉ cần 0.5s đệm là bắt đầu phát, giảm thời gian xoay spinner.
+*   `prioritizeTimeOverSizeThresholds` = true: Ưu tiên thời lượng đệm thay vì dung lượng đệm.
+
+### 2. Hỗ Trợ Giao Thức Chuyển Chở UDP và TCP
+*   **UDP:** Mặc định được bật để đạt tốc độ tối đa và độ trễ thấp nhất. Nếu gặp hiện tượng mất gói tin làm nhiễu hình hoặc vỡ hình, Viewer có thể chuyển đổi thủ công sang chế độ **TCP Interleaved** để đảm bảo tính toàn vẹn của gói tin qua bộ lọc `setForceUseRtpTcp(useTcp)`.
+
+### 3. Tính Toán FPS Thực Tế Bằng Metadata Listener
+Không sử dụng các chỉ số giả lập, ứng dụng trực tiếp đo lường số lượng khung hình (Frame) thực tế được vẽ trên Surface thông qua `VideoFrameMetadataListener`:
+```kotlin
+val listener = VideoFrameMetadataListener { _, _, format, _ ->
+    frameCounter.incrementAndGet()
+    if (videoInfo.isEmpty()) videoInfo = "${format.width}x${format.height}"
 }
-
-// SAI — StateFlow update từ IO thread
-_uiState.update { ... } // có thể gây race condition
+exoPlayer?.setVideoFrameMetadataListener(listener)
 ```
-
-### StateFlow Pattern
-```kotlin
-// ViewModel
-private val _uiState = MutableStateFlow(MyUiState())
-val uiState: StateFlow<MyUiState> = _uiState.asStateFlow()
-
-// UI
-val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-```
-`collectAsStateWithLifecycle()` tự ngừng collect khi app vào background — tiết kiệm pin.
-
-### ExoPlayer Lifecycle
-`DisposableEffect(rtspUrl, useTcp, attemptId)` — bất kỳ tham số nào thay đổi → ExoPlayer cũ bị `release()`, player mới tạo. `retryCamera()` tạo `attemptId` mới để trigger restart.
-
-### AppLog
-```kotlin
-AppLog.d("message")  // Debug
-AppLog.i("message")  // Info
-AppLog.w("message")  // Warning
-AppLog.e("message")  // Error
-AppLog.v("message")  // Verbose
-```
-Filter trong Logcat: `tag:PhoneCamera`
+Mỗi giây, một đồng hồ Coroutine sẽ đọc giá trị `frameCounter`, cập nhật FPS lên UI và reset bộ đếm về 0, cung cấp thông số băng thông trực quan cho lập trình viên.
 
 ---
 
-*Cập nhật lần cuối: 2026-04-23*
+## 🔍 Cơ Chế Auto-Discovery (mDNS/NSD)
+
+Ứng dụng không yêu cầu người dùng cấu hình thủ công địa chỉ IP phức tạp nhờ tích hợp giải pháp **Network Service Discovery (NSD)** của Android.
+
+1.  **Đăng ký Dịch vụ (Streamer):**
+    Khi Streamer bắt đầu phát sóng luồng RTSP ở port `8080`, hệ thống sử dụng `NsdManager` để đăng ký dịch vụ với định danh:
+    *   *Service Name:* `"PhoneCamera_" + DeviceName`
+    *   *Service Type:* `"_rtspguard._tcp"`
+    *   *Port:* `8080`
+2.  **Dò Tìm Dịch vụ (Viewer):**
+    Viewer liên tục chạy tiến trình quét mạng (`discoverServices()`) cho loại dịch vụ `_rtspguard._tcp`. Khi phát hiện thấy thiết bị tương thích, `NsdManager` sẽ thực hiện phân giải (Resolve) IP và Port của Streamer, hiển thị thông báo kết nối nhanh (Badge count) cho người dùng.
+
+---
+
+## 💾 Quản Lý Vòng Đời & Tránh Rò Rỉ Bộ Nhớ (Memory Leaks)
+
+Các thư viện Media như ExoPlayer và RtspServerCamera2 có khả năng gây rò rỉ bộ nhớ (memory leaks) rất lớn nếu không được giải phóng đúng cách khi UI bị hủy. Ứng dụng xử lý vấn đề này triệt để bằng cách:
+
+1.  **Sử dụng `DisposableEffect` trong Jetpack Compose:**
+    Trong màn hình xem camera, các đối tượng ExoPlayer được quản lý bên trong `DisposableEffect`. Khi ô Camera bị ẩn, hoặc luồng RTSP URL thay đổi, khối lệnh `onDispose` sẽ lập tức giải phóng tài nguyên hệ thống:
+    ```kotlin
+    DisposableEffect(rtspUrl, useTcp, attemptId) {
+        // Khởi tạo ExoPlayer bất đồng bộ sau 500ms
+        ...
+        onDispose {
+            job.cancel()
+            player?.release()
+            exoPlayer = null
+        }
+    }
+    ```
+2.  **Tự động dừng phát ở Background:**
+    Nhằm bảo mật quyền riêng tư và tiết kiệm tài nguyên năng lượng, Streamer tự lắng nghe vòng đời ứng dụng. Khi ứng dụng đi vào trạng thái `ON_PAUSE` (người dùng bấm Home hoặc có cuộc gọi đến), hệ thống tự động tắt camera phần cứng, dừng stream và gỡ bỏ NSD Service.
+
+---
+
+## 📁 Cấu Trúc Thư Mục Dự Án
+
+```
+app/src/main/java/com/example/phonecamera/
+│
+├── MainActivity.kt              # Single Activity duy nhất quản lý Composable NavHost
+│
+├── navigation/
+│   └── Screen.kt                # sealed class định nghĩa các Route: Home | Streamer | Viewer
+│
+├── data/
+│   ├── CameraRepository.kt      # Quản lý DataStore Preferences, đọc/ghi danh sách camera lưu trữ
+│   ├── CameraConfig.kt          # Thực thể cấu hình camera (id, name, host, port, isPhoneCamera)
+│   └── nsd/
+│       ├── NsdHelper.kt         # Lớp wrapper xử lý đăng ký và khám phá mDNS Service
+│       └── DiscoveredCamera.kt  # Thực thể chứa thông tin camera tìm được qua NSD
+│
+├── home/
+│   ├── HomeScreen.kt            # Màn hình điều hướng chính (lựa chọn vai trò)
+│   └── HomeViewModel.kt         # Quản lý kiểm tra và yêu cầu cấp quyền hệ thống
+│
+├── streamer/
+│   ├── StreamerScreen.kt        # UI Streamer: điều khiển phát, lật camera, thông tin kết nối
+│   ├── StreamerViewModel.kt     # Quản lý camera phần cứng, điều phối RtspServer và ControlServer
+│   └── ControlServer.kt         # TCP Server lắng nghe lệnh điều khiển chất lượng và thiết bị kết nối
+│
+├── viewer/
+│   ├── ViewerScreen.kt          # UI lưới đa camera, tự động chuyển layout dọc/ngang
+│   ├── ViewerViewModel.kt       # Quản lý các luồng phát ExoPlayer, gửi lệnh TCP và nhận dạng NSD
+│   └── components/
+│       ├── CameraCell.kt        # Ô chứa ExoPlayer, xử lý đo FPS thực tế và nút thay đổi HD
+│       ├── AddEditCameraDialog.kt
+│       └── DiscoveryBottomSheet.kt
+│
+└── utils/
+    └── AppLog.kt                # Hệ thống Logging tập trung với Tag đồng nhất "PhoneCamera"
+```
+
+---
+
+## 🎓 Bộ Câu Hỏi Phỏng Vấn "Trúng Tủ" (Interview Cheat Sheet)
+
+Khi mang dự án này đi phỏng vấn vị trí **Android Developer (Kotlin/Native)**, nhà tuyển dụng có thể sẽ hỏi bạn các câu hỏi đào sâu về kỹ thuật dưới đây. Hãy tham khảo cách trả lời chuẩn chỉ để gây ấn tượng mạnh:
+
+### 1. Tại sao bạn lại chọn giao thức TCP cho ControlServer thay vì HTTP hay WebSockets?
+*   **Trả lời:** 
+    > "Trong phạm vi ứng dụng nội bộ (mạng LAN), việc dựng một HTTP Server (như Ktor hay NanoHTTPD) sẽ tạo thêm nhiều thư viện rác và làm tăng kích thước file APK một cách không cần thiết. WebSockets cũng yêu cầu phải thực hiện bắt tay (handshake) phức tạp và duy trì kết nối liên tục (persistent connection), tiêu tốn nhiều tài nguyên pin. 
+    > Vì vậy, em đã tự viết một giao thức text-based tối giản trên socket TCP thô (`ServerSocket` ở cổng `8081`). Mỗi khi Viewer muốn gửi lệnh (như HELLO, BYE, hay đổi chất lượng), nó chỉ cần tạo một kết nối Socket ngắn hạn, gửi 1 dòng lệnh rồi đóng kết nối lại. Giải pháp này cực kỳ nhẹ, nhanh và không làm rò rỉ kết nối."
+
+### 2. Làm thế nào bạn giải quyết bài toán độ trễ (latency) khi phát trực tiếp?
+*   **Trả lời:**
+    > "Mặc định, ExoPlayer được thiết kế để đệm (buffer) rất nhiều giây trước khi phát nhằm tránh giật hình khi mạng internet yếu. Với luồng RTSP nội bộ, em đã tối ưu hóa điều này bằng cách tùy biến `DefaultLoadControl`. Em cấu hình lại các thông số đệm xuống mức cực thấp: đệm tối thiểu 1000ms để bắt đầu phát và đệm tối đa 5000ms để tránh dồn ứ khung hình. 
+    > Đồng thời, em cũng hỗ trợ người dùng toggle giữa giao thức UDP (giảm tối đa độ trễ nhờ bỏ qua kiểm tra bắt tay) và TCP (khi mạng nhiễu nặng)."
+
+### 3. Bạn đã xử lý Thread Safety như thế nào khi nhận lệnh TCP và cập nhật UI State?
+*   **Trả lời:**
+    > "TCP Server (`ControlServer`) lắng nghe các kết nối đến trên một luồng nền tách biệt nhờ Coroutine sử dụng `Dispatchers.IO` để không gây nghẽn UI (Main Thread). Tuy nhiên, khi nhận được lệnh điều khiển (như yêu cầu đổi độ phân giải), ta bắt buộc phải thay đổi trạng thái của ViewModel và cập nhật UI.
+    > Để đảm bảo an toàn luồng (Thread Safety), em đã gom các lệnh nhận được và chuyển tiếp chúng về luồng Main Thread bằng cách chạy trong phạm vi `viewModelScope.launch(Dispatchers.Main)` trước khi thực hiện thay đổi giá trị của `MutableStateFlow` (sử dụng hàm `.update { ... }` nguyên tử). Điều này giúp tránh hiện tượng Race Condition gây crash ứng dụng."
+
+### 4. Jetpack Compose recomposition diễn ra liên tục. Làm sao bạn đảm bảo đối tượng ExoPlayer không bị khởi tạo lại vô tội vạ?
+*   **Trả lời:**
+    > "Em sử dụng hàm `rememberLowLatencyExoPlayer` kết hợp với `DisposableEffect`. ExoPlayer sẽ chỉ được khởi tạo lại khi và chỉ khi các tham số quan trọng thay đổi (địa chỉ `rtspUrl`, chế độ `useTcp`, hoặc một biến đánh dấu lần thử lại `attemptId`).
+    > Khi xảy ra quá trình Recomposition thông thường (ví dụ: thay đổi văn bản hiển thị trên UI), các tham số trên không thay đổi, vì thế Compose sẽ tái sử dụng thực thể Player cũ đã được ghi nhớ. Khi Composable bị hủy hoàn toàn hoặc tham số thay đổi, khối `onDispose` sẽ được kích hoạt để giải phóng (`player.release()`) đối tượng cũ nhằm tránh rò rỉ bộ nhớ."
+
+### 5. Tại sao bạn chọn lưu trữ danh sách Camera bằng Jetpack DataStore Preferences thay vì Room Database?
+*   **Trả lời:**
+    > "Ứng dụng này chỉ quản lý tối đa 4 slot camera với cấu hình dữ liệu dạng phẳng rất đơn giản (không có các mối quan hệ phức tạp như 1-nhiều hay nhiều-nhiều). Việc tích hợp Room Database trong trường hợp này là quá mức cần thiết (overkill), yêu cầu nhiều cấu hình Boilerplate code (Entity, DAO, Database Class, Migrations).
+    > Sử dụng Jetpack DataStore Preferences kết hợp thư viện `kotlinx.serialization` giúp em lưu trữ danh sách camera dưới dạng một chuỗi JSON an toàn, đọc ghi bất đồng bộ thông qua Kotlin Flow, vừa gọn nhẹ vừa đảm bảo hiệu năng cao mà không gây nghẽn luồng UI."
+
+---
+
+## 🚀 Hướng Dẫn Cài Đặt & Chạy Thử
+
+### 1. Yêu cầu thiết bị
+*   Tối thiểu 2 thiết bị Android chạy hệ điều hành Android 8.0 (API Level 26) trở lên.
+*   Cả hai thiết bị cùng kết nối vào **một mạng WiFi chung**.
+
+### 2. Các bước cài đặt
+1.  Clone dự án về máy:
+    ```bash
+    git clone https://github.com/nvdung1607/PhoneCamera.git
+    ```
+2.  Mở dự án bằng **Android Studio (Ladybug hoặc mới hơn)**.
+3.  Kết nối thiết bị Android của bạn và nhấn **Run app** (`Shift + F10`).
+
+### 3. Cách kiểm thử tính năng
+1.  **Trên thiết bị làm Máy Quay (Streamer):**
+    *   Mở app, chọn **Máy Quay**.
+    *   Cấp quyền Camera và Microphone nếu được yêu cầu.
+    *   Chọn độ phân giải mong muốn và bấm **BẮT ĐẦU PHÁT**.
+2.  **Trên thiết bị làm Màn hình Xem (Viewer):**
+    *   Mở app, chọn **Màn hình Xem**.
+    *   Bấm vào biểu tượng quét thiết bị ở góc trên bên phải. Hệ thống sẽ tự quét mDNS và hiển thị tên thiết bị Máy Quay.
+    *   Chạm vào tên thiết bị Máy Quay để gán vào một trong bốn ô xem của màn hình lưới. Luồng video trực tiếp sẽ hiển thị sau khoảng 1-2 giây.
+    *   Bấm vào nút **HD** trên ô camera để đổi độ phân giải từ xa và kiểm tra phản hồi của Streamer.
+
+---
+
+*Cập nhật lần cuối: 2026-05-26*
