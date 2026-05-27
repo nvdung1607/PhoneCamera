@@ -49,6 +49,7 @@ fun CameraCell(
     slotIndex: Int,
     config: CameraConfig?,
     playerState: PlayerState,
+    exoPlayer: ExoPlayer?,
     useTcp: Boolean,
     isAudioEnabled: Boolean,
     onToggleAudio: () -> Unit,
@@ -60,6 +61,7 @@ fun CameraCell(
     onPlayerReady: () -> Unit,
     onPlayerError: (String) -> Unit,
     onSetRemoteQuality: ((Int) -> Unit)? = null,
+    onSetRemoteFps: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -69,28 +71,14 @@ fun CameraCell(
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
     ) {
-        val shouldRunPlayer = config != null &&
-                (playerState is PlayerState.Loading || playerState is PlayerState.Playing)
-        val attemptId = (playerState as? PlayerState.Loading)?.attemptId ?: 0L
-
-        val exoPlayer: ExoPlayer? = if (shouldRunPlayer && config != null) {
-            rememberLowLatencyExoPlayer(
-                rtspUrl = config.toRtspUrl(),
-                useTcp = useTcp,
-                attemptId = attemptId,
-                onPlayerReady = { AppLog.i("slot=$slotIndex ▶ ready"); onPlayerReady() },
-                onPlayerError = { msg -> AppLog.e("slot=$slotIndex ✗ $msg"); onPlayerError(msg) }
-            )
-        } else null
-
         LaunchedEffect(exoPlayer, isAudioEnabled) {
             exoPlayer?.volume = if (isAudioEnabled) 1f else 0f
         }
 
         LaunchedEffect(playerState) {
             if (playerState is PlayerState.Loading) {
-                delay(10_000L)
-                onPlayerError("Hết thời gian chờ kết nối (10s)")
+                delay(30_000L)
+                onPlayerError("Hết thời gian chờ kết nối (30s)")
             }
         }
 
@@ -108,63 +96,12 @@ fun CameraCell(
                     onFullscreenClick = onFullscreenClick,
                     isFullscreen = isFullscreen,
                     onEdit = onEditClick,
-                    onSetRemoteQuality = onSetRemoteQuality
+                    onSetRemoteQuality = onSetRemoteQuality,
+                    onSetRemoteFps = onSetRemoteFps
                 )
             else -> EmptyCell(onAddClick)
         }
     }
-}
-
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-@Composable
-private fun rememberLowLatencyExoPlayer(
-    rtspUrl: String,
-    useTcp: Boolean,
-    attemptId: Long,
-    onPlayerReady: () -> Unit,
-    onPlayerError: (String) -> Unit
-): ExoPlayer? {
-    val context = LocalContext.current
-    var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
-
-    DisposableEffect(rtspUrl, useTcp, attemptId) {
-        var player: ExoPlayer? = null
-        val job = CoroutineScope(Dispatchers.Main).launch {
-            delay(500)
-            val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(1000, 5000, 500, 1000)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build()
-            val newPlayer = ExoPlayer.Builder(context).setLoadControl(loadControl).build()
-            newPlayer.apply {
-                val source = RtspMediaSource.Factory()
-                    .setForceUseRtpTcp(useTcp)
-                    .setTimeoutMs(15_000L)
-                    .createMediaSource(MediaItem.fromUri(rtspUrl))
-                setMediaSource(source)
-                addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(state: Int) {
-                        if (state == Player.STATE_READY) onPlayerReady()
-                    }
-                    override fun onPlayerError(error: PlaybackException) {
-                        val msg = when (error.errorCode) {
-                            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "Không kết nối được mạng"
-                            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "Hết thời gian chờ (>15s)"
-                            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> "Máy chủ từ chối kết nối"
-                            PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> "Luồng không đồng bộ — Thử lại"
-                            else -> "Lỗi [${error.errorCode}]: ${error.message?.take(60) ?: "?"}"
-                        }
-                        onPlayerError(msg)
-                    }
-                })
-                prepare()
-                playWhenReady = true
-            }
-            player = newPlayer; exoPlayer = newPlayer
-        }
-        onDispose { job.cancel(); player?.release(); exoPlayer = null }
-    }
-    return exoPlayer
 }
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -179,12 +116,14 @@ private fun ActivePlayerCell(
     onFullscreenClick: () -> Unit,
     isFullscreen: Boolean,
     onEdit: () -> Unit,
-    onSetRemoteQuality: ((Int) -> Unit)?
+    onSetRemoteQuality: ((Int) -> Unit)?,
+    onSetRemoteFps: ((Int) -> Unit)?
 ) {
     val frameCounter = remember { AtomicLong(0) }
     var displayFps by remember { mutableStateOf(0) }
     var videoInfo by remember { mutableStateOf("") }
     var showQualityMenu by remember { mutableStateOf(false) }
+    var showFpsMenu by remember { mutableStateOf(false) }
 
     DisposableEffect(exoPlayer) {
         val listener = VideoFrameMetadataListener { _, _, format, _ ->
@@ -234,7 +173,36 @@ private fun ActivePlayerCell(
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 fontWeight = FontWeight.SemiBold
             )
-            if (!showLoadingOverlay && displayFps > 0) {
+            
+            // Remote FPS selection badge (only for Phone Cameras when playing)
+            if (onSetRemoteFps != null && !showLoadingOverlay) {
+                Box {
+                    Text(
+                        text = if (displayFps > 0) "${displayFps}fps ⚙️" else "FPS",
+                        fontSize = 9.sp,
+                        color = if (displayFps >= 24) GreenOnline else AmberWarning,
+                        modifier = Modifier
+                            .background(
+                                if (displayFps >= 24) GreenOnline.copy(alpha = 0.15f) else AmberWarning.copy(alpha = 0.15f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .clickable { showFpsMenu = true }
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                    DropdownMenu(
+                        expanded = showFpsMenu,
+                        onDismissRequest = { showFpsMenu = false }
+                    ) {
+                        listOf(15, 24, 30).forEach { fps ->
+                            DropdownMenuItem(
+                                text = { Text("${fps} FPS", style = MaterialTheme.typography.bodyMedium) },
+                                onClick = { onSetRemoteFps(fps); showFpsMenu = false }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+            } else if (!showLoadingOverlay && displayFps > 0) {
                 Text(
                     text = "${displayFps}fps", fontSize = 9.sp,
                     color = if (displayFps >= 24) GreenOnline else AmberWarning,
@@ -247,23 +215,25 @@ private fun ActivePlayerCell(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
             }
-            if (videoInfo.isNotEmpty() && !showLoadingOverlay) {
-                Text(text = videoInfo, fontSize = 9.sp, color = Color.White.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(end = 4.dp))
-            }
 
-            // Nút đổi chất lượng từ xa (chỉ Phone Camera)
-            if (onSetRemoteQuality != null) {
+            // Nút đổi chất lượng từ xa (chỉ Phone Camera) tích hợp vào nhãn độ phân giải
+            if (onSetRemoteQuality != null && !showLoadingOverlay) {
                 Box {
-                    IconButton(onClick = { showQualityMenu = true }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Outlined.Hd, "Đổi chất lượng",
-                            tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
-                    }
+                    Text(
+                        text = videoInfo.ifEmpty { "HD" },
+                        fontSize = 9.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                            .clickable { showQualityMenu = true }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                     DropdownMenu(
                         expanded = showQualityMenu,
                         onDismissRequest = { showQualityMenu = false }
                     ) {
-                        listOf(360 to "360p", 720 to "720p", 1080 to "1080p").forEach { (h, label) ->
+                        listOf(360 to "360p (640x360)", 720 to "720p (1280x720)", 1080 to "1080p (1920x1080)").forEach { (h, label) ->
                             DropdownMenuItem(
                                 text = { Text(label, style = MaterialTheme.typography.bodyMedium) },
                                 onClick = { onSetRemoteQuality(h); showQualityMenu = false }
@@ -271,6 +241,10 @@ private fun ActivePlayerCell(
                         }
                     }
                 }
+                Spacer(modifier = Modifier.width(4.dp))
+            } else if (videoInfo.isNotEmpty() && !showLoadingOverlay) {
+                Text(text = videoInfo, fontSize = 9.sp, color = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(end = 4.dp))
             }
 
             IconButton(onClick = onToggleAudio, modifier = Modifier.size(24.dp)) {
@@ -353,16 +327,27 @@ private fun ErrorCell(name: String, message: String, onRetry: () -> Unit, onEdit
             fontSize = 10.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(onClick = onRetry, modifier = Modifier.height(30.dp),
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.height(30.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-            ) { Text("Thử lại", fontSize = 11.sp) }
-            OutlinedButton(onClick = onEdit, modifier = Modifier.height(30.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) { Text("Thử lại", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            
+            Button(
+                onClick = onEdit,
+                modifier = Modifier.height(30.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-            ) { Text("Sửa", fontSize = 11.sp) }
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.onErrorContainer,
+                    contentColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) { Text("Sửa", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         }
     }
 }

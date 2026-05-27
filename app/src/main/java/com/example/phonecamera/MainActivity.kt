@@ -32,24 +32,24 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     NavHost(
                         navController = navController,
-                        startDestination = Screen.Home.route
+                        startDestination = Screen.Home
                     ) {
-                        composable(Screen.Home.route) {
+                        composable<Screen.Home> {
                             HomeScreen(
                                 onNavigateToStreamer = {
-                                    navController.navigate(Screen.Streamer.route)
+                                    navController.navigate(Screen.Streamer)
                                 },
                                 onNavigateToViewer = {
-                                    navController.navigate(Screen.Viewer.route)
+                                    navController.navigate(Screen.Viewer)
                                 }
                             )
                         }
-                        composable(Screen.Streamer.route) {
+                        composable<Screen.Streamer> {
                             StreamerScreen(
                                 onBack = { navController.popBackStack() }
                             )
                         }
-                        composable(Screen.Viewer.route) {
+                        composable<Screen.Viewer> {
                             ViewerScreen(
                                 onBack = { navController.popBackStack() }
                             )

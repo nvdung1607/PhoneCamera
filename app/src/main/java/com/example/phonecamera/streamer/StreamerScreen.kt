@@ -154,24 +154,70 @@ fun StreamerScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Nút điều khiển phía trên
+                    // Hàng điều khiển và Trạng thái trên cùng sát lề
+                    var showPin by remember { mutableStateOf(false) }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(8.dp),
+                            .padding(top = 4.dp, start = 8.dp, end = 8.dp, bottom = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(
-                            onClick = {
-                                if (uiState.isStreaming) viewModel.stopStream()
-                                onBack()
-                            },
-                            modifier = Modifier.background(OverlayDark, RoundedCornerShape(50))
+                        // Left: Back button + badges
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.ArrowBack, "Quay lại", tint = Color.White)
+                            IconButton(
+                                onClick = {
+                                    if (uiState.isStreaming) viewModel.stopStream()
+                                    onBack()
+                                },
+                                modifier = Modifier.background(OverlayDark, RoundedCornerShape(50))
+                            ) {
+                                Icon(Icons.Filled.ArrowBack, "Quay lại", tint = Color.White)
+                            }
+
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = uiState.isStreaming,
+                                enter = fadeIn(), exit = fadeOut()
+                            ) { LiveBadge() }
+
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = uiState.isStreaming && uiState.pinCode.isNotEmpty(),
+                                enter = fadeIn(), exit = fadeOut()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .background(OverlayDark, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Outlined.Lock, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (showPin) "PIN: ${uiState.pinCode}" else "PIN: ****",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    IconButton(
+                                        onClick = { showPin = !showPin },
+                                        modifier = Modifier.size(18.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (showPin) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                            contentDescription = "Ẩn/Hiện PIN",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
 
+                        // Right: Control buttons
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             IconButton(
                                 onClick = { isDimmed = true },
@@ -181,19 +227,20 @@ fun StreamerScreen(
                             }
                             IconButton(
                                 onClick = { viewModel.switchCamera() },
-                                modifier = Modifier.background(OverlayDark, RoundedCornerShape(50))
+                                enabled = uiState.hasFrontCamera && uiState.hasBackCamera,
+                                modifier = Modifier.background(
+                                    if (uiState.hasFrontCamera && uiState.hasBackCamera) OverlayDark else OverlayDark.copy(alpha = 0.2f),
+                                    RoundedCornerShape(50)
+                                )
                             ) {
-                                Icon(Icons.Filled.FlipCameraAndroid, "Lật Camera", tint = MaterialTheme.colorScheme.primary)
+                                Icon(
+                                    Icons.Filled.FlipCameraAndroid,
+                                    "Lật Camera",
+                                    tint = if (uiState.hasFrontCamera && uiState.hasBackCamera) MaterialTheme.colorScheme.primary else Color.Gray
+                                )
                             }
                         }
                     }
-
-                    // Badge LIVE
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = uiState.isStreaming,
-                        modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
-                        enter = fadeIn(), exit = fadeOut()
-                    ) { LiveBadge() }
 
                     // Hiện độ phân giải đang chọn khi chưa phát
                     androidx.compose.animation.AnimatedVisibility(
@@ -202,7 +249,7 @@ fun StreamerScreen(
                         enter = fadeIn(), exit = fadeOut()
                     ) {
                         Text(
-                            text = uiState.selectedResolution.label,
+                            text = "${uiState.selectedResolution.label} | ${uiState.fps} FPS",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextSecondary,
                             modifier = Modifier
@@ -221,15 +268,21 @@ fun StreamerScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // Chọn độ phân giải
+                    // Chọn độ phân giải & FPS
                     Column {
-                        Text(
-                            text = "Chất lượng video",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Chất lượng video",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Resolution.entries.forEach { res ->
                                 val selected = uiState.selectedResolution == res
@@ -241,7 +294,45 @@ fun StreamerScreen(
                                         Text(
                                             text = res.label,
                                             fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 12.sp,
+                                            fontSize = 11.sp,
+                                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = !uiState.isStreaming,
+                                        selected = selected,
+                                        selectedBorderColor = MaterialTheme.colorScheme.primary,
+                                        borderColor = MaterialTheme.colorScheme.outlineVariant,
+                                        borderWidth = 1.dp,
+                                        selectedBorderWidth = 1.5.dp
+                                    )
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Tốc độ khung hình (FPS)",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(15, 24, 30).forEach { fpsValue ->
+                                val selected = uiState.fps == fpsValue
+                                FilterChip(
+                                    selected = selected,
+                                    enabled = !uiState.isStreaming,
+                                    onClick = { viewModel.selectFps(fpsValue) },
+                                    label = {
+                                        Text(
+                                            text = "${fpsValue} FPS",
+                                            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
+                                            fontSize = 11.sp,
                                             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                         )
                                     },

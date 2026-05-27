@@ -29,6 +29,10 @@ object AppLog {
         return "[Unknown]"
     }
 
+    fun net(message: String) {
+        Log.i("PhoneCameraNet", "${getCallerInfo()} 🌐 [NET_PACKET] $message")
+    }
+
     fun d(message: String) {
         Log.d(GLOBAL_TAG, "${getCallerInfo()} $message")
     }

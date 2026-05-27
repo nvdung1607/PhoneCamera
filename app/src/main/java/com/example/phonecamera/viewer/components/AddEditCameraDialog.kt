@@ -9,6 +9,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -34,11 +35,16 @@ fun AddEditCameraDialog(
     var name by remember { mutableStateOf(initialConfig?.name ?: "Camera ${slotIndex + 1}") }
     var host by remember { mutableStateOf(initialConfig?.host ?: "") }
     var port by remember { mutableStateOf(initialConfig?.port?.toString() ?: "8080") }
+    var pinCode by remember { mutableStateOf(initialConfig?.pinCode ?: "") }
 
     val nameError = name.isBlank()
     val hostError = host.isNotBlank() && !isValidHost(host)
     val portError = port.isNotBlank() && !isValidPort(port)
-    val isFormValid = !nameError && isValidHost(host) && !portError
+    
+    // Yêu cầu mã PIN 4 chữ số nếu là camera điện thoại
+    val isPhoneCamera = initialConfig?.isPhoneCamera ?: false
+    val pinError = pinCode.isNotBlank() && (pinCode.length != 4 || !pinCode.all { it.isDigit() })
+    val isFormValid = !nameError && isValidHost(host) && !portError && (!isPhoneCamera || (pinCode.length == 4 && pinCode.all { it.isDigit() }))
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -88,41 +94,68 @@ fun AddEditCameraDialog(
                     isError = portError, errorMessage = "Cổng hợp lệ từ 1 đến 65535",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
+
+                CameraTextField(
+                    value = pinCode, onValueChange = { if (it.length <= 4) pinCode = it.filter(Char::isDigit) },
+                    label = "Mã PIN bảo mật (4 chữ số)", placeholder = "VD: 1234",
+                    leadingIcon = Icons.Outlined.Lock,
+                    isError = pinError, errorMessage = "Mã PIN phải gồm đúng 4 chữ số",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                )
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    onConfirm(CameraConfig(
-                        id = slotIndex,
-                        name = name.trim(),
-                        host = host.trim(),
-                        port = port.toIntOrNull() ?: 8080,
-                        isPhoneCamera = initialConfig?.isPhoneCamera ?: false
-                    ))
-                },
-                enabled = isFormValid,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) { Text("Lưu", fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = {
-            Row {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 if (onDelete != null) {
-                    TextButton(
+                    Button(
                         onClick = onDelete,
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Xóa") }
-                    Spacer(modifier = Modifier.weight(1f))
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Xóa", fontWeight = FontWeight.Bold)
+                    }
                 }
-                TextButton(onClick = onDismiss) {
-                    Text("Huỷ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                
+                OutlinedButton(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Text("Hủy", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                
+                Button(
+                    onClick = {
+                        onConfirm(CameraConfig(
+                            id = slotIndex,
+                            name = name.trim(),
+                            host = host.trim(),
+                            port = port.toIntOrNull() ?: 8080,
+                            isPhoneCamera = isPhoneCamera,
+                            pinCode = pinCode
+                        ))
+                    },
+                    enabled = isFormValid,
+                    colors = ButtonDefaults.buttonColors(
+                         containerColor = MaterialTheme.colorScheme.primary,
+                         contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Lưu", fontWeight = FontWeight.Bold)
                 }
             }
-        }
+        },
+        dismissButton = null
     )
 }
 

@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -21,9 +22,16 @@ data class CameraConfig(
     val host: String,
     val port: Int = 8080,
     /** true nếu camera này là điện thoại chạy ứng dụng Phone Camera (thêm qua NSD) */
-    val isPhoneCamera: Boolean = false
+    val isPhoneCamera: Boolean = false,
+    val pinCode: String = ""
 ) {
-    fun toRtspUrl() = "rtsp://$host:$port"
+    fun toRtspUrl(): String {
+        return if (pinCode.isNotEmpty()) {
+            "rtsp://admin:$pinCode@$host:$port"
+        } else {
+            "rtsp://$host:$port"
+        }
+    }
 }
 
 class CameraRepository(private val context: Context) {
@@ -60,5 +68,20 @@ class CameraRepository(private val context: Context) {
             current.removeAll { it.id == id }
             prefs[CAMERAS_KEY] = json.encodeToString<List<CameraConfig>>(current)
         }
+    }
+
+    // Storing and retrieving streamer PIN persistently
+    private val STREAMER_PIN_KEY = stringPreferencesKey("streamer_pin")
+
+    suspend fun saveStreamerPin(pin: String) {
+        context.dataStore.edit { prefs ->
+            prefs[STREAMER_PIN_KEY] = pin
+        }
+    }
+
+    suspend fun getSavedStreamerPin(): String? {
+        return context.dataStore.data.map { prefs ->
+            prefs[STREAMER_PIN_KEY]
+        }.firstOrNull()
     }
 }

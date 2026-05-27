@@ -3,29 +3,48 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    
-    <!-- Phone body -->
-    <path
-        android:fillColor="#1A2A40"
-        android:pathData="M 34 16 L 74 16 C 79.5 16 84 20.5 84 26 L 84 82 C 84 87.5 79.5 92 74 92 L 34 92 C 28.5 92 24 87.5 24 82 L 24 26 C 24 20.5 28.5 16 34 16 Z" />
-        
-    <!-- Phone screen -->
-    <path
-        android:fillColor="#0B1320"
-        android:pathData="M 28 24 L 80 24 L 80 84 L 28 84 Z" />
-        
-    <!-- Camera Lens Outer Ring -->
-    <path
-        android:fillColor="#00E5FF"
-        android:pathData="M 54 42 C 46.3 42 40 48.3 40 56 C 40 63.7 46.3 70 54 70 C 61.7 70 68 63.7 68 56 C 68 48.3 61.7 42 54 42 Z M 54 46 C 59.5 46 64 50.5 64 56 C 64 61.5 59.5 66 54 66 C 48.5 66 44 61.5 44 56 C 44 50.5 48.5 46 54 46 Z" />
-        
-    <!-- Camera Lens Inner Glass -->
-    <path
-        android:fillColor="#00B8D4"
-        android:pathData="M 54 50 C 50.7 50 48 52.7 48 56 C 48 59.3 50.7 62 54 62 C 57.3 62 60 59.3 60 56 C 60 52.7 57.3 50 54 50 Z" />
-        
-    <!-- Recording Red Dot -->
-    <path
-        android:fillColor="#FF1744"
-        android:pathData="M 72 32 C 70.3 32 69 33.3 69 35 C 69 36.7 70.3 38 72 38 C 73.7 38 75 36.7 75 35 C 75 33.3 73.7 32 72 32 Z" />
+
+    <!-- Scale down the main logo (75% size) centered at (54, 54) to leave a clean white margin -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.75"
+        android:scaleY="0.75">
+
+        <!-- 1. Top-Left Quadrant (Google Red - #EA4335) -->
+        <path
+            android:fillColor="#EA4335"
+            android:pathData="M 30 36 H 54 V 56 H 22 V 44 C 22 39.6 25.6 36 30 36 Z" />
+
+        <!-- 2. Top-Right Quadrant (Google Yellow - #FBBC05) -->
+        <path
+            android:fillColor="#FBBC05"
+            android:pathData="M 54 36 H 78 C 82.4 36 86 39.6 86 44 V 56 H 54 Z" />
+
+        <!-- 3. Bottom-Right Quadrant (Google Green - #34A853) -->
+        <path
+            android:fillColor="#34A853"
+            android:pathData="M 54 56 H 86 V 68 C 86 72.4 82.4 76 78 76 H 54 Z" />
+
+        <!-- 4. Bottom-Left Quadrant (Google Blue - #4285F4) -->
+        <path
+            android:fillColor="#4285F4"
+            android:pathData="M 22 56 H 54 V 76 H 30 C 25.6 76 22 72.4 22 68 Z" />
+
+        <!-- 5. Large Outer Lens Ring (Pure White - #FFFFFF) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 54 42 C 46.3 42 40 48.3 40 56 C 40 63.7 46.3 70 54 70 C 61.7 70 68 63.7 68 56 C 68 48.3 61.7 42 54 42 Z" />
+
+        <!-- 6. Inner Lens Core (Google Dark Blue - #1A73E8) -->
+        <path
+            android:fillColor="#1A73E8"
+            android:pathData="M 54 47 C 49 47 45 51 45 56 C 45 61 49 65 54 65 C 59 65 63 61 63 56 C 63 51 59 47 54 47 Z" />
+
+        <!-- 7. Lens Reflection Highlight (Pure White - #FFFFFF) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 50 51.5 C 49.5 51.5 49 52 49 53 C 49 54 49.5 54.5 50 54.5 C 50.5 54.5 51 54 51 53 C 51 52 50.5 51.5 50 51.5 Z" />
+
+    </group>
 </vector>

@@ -28,7 +28,8 @@ class ControlServer(val port: Int = CONTROL_PORT) {
     private var serverJob: Job? = null
     private var serverSocket: ServerSocket? = null
 
-    fun start(scope: CoroutineScope, onCommand: (Command) -> Unit) {
+    fun start(scope: CoroutineScope, onCommand: (Command) -> String?) {
+        AppLog.d("start()")
         if (serverJob?.isActive == true) return
         serverJob = scope.launch(Dispatchers.IO) {
             try {
@@ -37,14 +38,31 @@ class ControlServer(val port: Int = CONTROL_PORT) {
                 while (isActive) {
                     try {
                         val client = ss.accept()
-                        val clientIp = client.inetAddress.hostAddress ?: "?"
-                        val line = java.io.BufferedReader(java.io.InputStreamReader(client.inputStream)).readLine()?.trim() ?: continue
-                        AppLog.d("ControlServer ← [$clientIp] $line")
-
-                        val cmd = parseCommand(line, clientIp)
-                        val response = if (cmd != null) { onCommand(cmd); "OK" } else "ERROR unknown command"
-                        client.outputStream.write("$response\n".toByteArray())
-                        client.close()
+                        launch(Dispatchers.IO) {
+                            try {
+                                client.soTimeout = 3000
+                                val clientIp = client.inetAddress.hostAddress ?: "?"
+                                val reader = java.io.BufferedReader(java.io.InputStreamReader(client.inputStream))
+                                val line = reader.readLine()?.trim()
+                                if (line != null) {
+                                    AppLog.net("<-- RECV COMMAND from [$clientIp]: '$line'")
+                                    val cmd = parseCommand(line, clientIp)
+                                    val response = if (cmd != null) {
+                                        val err = onCommand(cmd)
+                                        if (err == null) "OK" else "ERROR $err"
+                                    } else {
+                                        "ERROR unknown command"
+                                    }
+                                    AppLog.net("--> SEND RESPONSE to [$clientIp]: '$response'")
+                                    client.outputStream.write("$response\n".toByteArray())
+                                    client.outputStream.flush()
+                                }
+                            } catch (e: Exception) {
+                                AppLog.w("ControlServer handling client error: ${e.message}")
+                            } finally {
+                                try { client.close() } catch (_: Exception) {}
+                            }
+                        }
                     } catch (e: SocketException) {
                         if (isActive) AppLog.w("ControlServer client error: ${e.message}")
                     }
@@ -56,6 +74,7 @@ class ControlServer(val port: Int = CONTROL_PORT) {
     }
 
     fun stop() {
+        AppLog.d("stop()")
         serverJob?.cancel()
         serverJob = null
         try { serverSocket?.close() } catch (_: Exception) {}
@@ -64,21 +83,39 @@ class ControlServer(val port: Int = CONTROL_PORT) {
     }
 
     private fun parseCommand(line: String, fromIp: String): Command? {
-        val parts = line.split(" ", limit = 2)
+        AppLog.d("parseCommand(line=$line, fromIp=$fromIp)")
+        val parts = line.split(" ")
+        if (parts.isEmpty()) return null
         return when (parts[0].uppercase()) {
-            "HELLO"       -> Command.Hello(deviceName = parts.getOrElse(1) { fromIp }, ip = fromIp)
-            "BYE"         -> Command.Bye(deviceName = parts.getOrElse(1) { fromIp }, ip = fromIp)
+            "HELLO" -> {
+                val deviceName = parts.getOrNull(1) ?: fromIp
+                val pin = parts.getOrNull(2) ?: ""
+                Command.Hello(deviceName = deviceName, pin = pin, ip = fromIp)
+            }
+            "BYE" -> {
+                val deviceName = parts.getOrNull(1) ?: fromIp
+                val pin = parts.getOrNull(2) ?: ""
+                Command.Bye(deviceName = deviceName, pin = pin, ip = fromIp)
+            }
             "SET_QUALITY" -> {
-                val h = parts.getOrElse(1) { "" }.trim().toIntOrNull()
-                if (h != null) Command.SetQuality(heightP = h, fromIp = fromIp) else null
+                val h = parts.getOrNull(1)?.toIntOrNull()
+                val pin = parts.getOrNull(2) ?: ""
+                if (h != null) Command.SetQuality(heightP = h, pin = pin, fromIp = fromIp) else null
+            }
+            "SET_FPS" -> {
+                val fps = parts.getOrNull(1)?.toIntOrNull()
+                val pin = parts.getOrNull(2) ?: ""
+                if (fps != null) Command.SetFps(fps = fps, pin = pin, fromIp = fromIp) else null
             }
             else -> null
         }
     }
 
     sealed class Command {
-        data class Hello(val deviceName: String, val ip: String) : Command()
-        data class Bye(val deviceName: String, val ip: String) : Command()
-        data class SetQuality(val heightP: Int, val fromIp: String) : Command()
+        abstract val pin: String
+        data class Hello(val deviceName: String, override val pin: String, val ip: String) : Command()
+        data class Bye(val deviceName: String, override val pin: String, val ip: String) : Command()
+        data class SetQuality(val heightP: Int, override val pin: String, val fromIp: String) : Command()
+        data class SetFps(val fps: Int, override val pin: String, val fromIp: String) : Command()
     }
 }

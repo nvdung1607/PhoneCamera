@@ -34,6 +34,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.phonecamera.ui.theme.*
+import com.example.phonecamera.data.CameraConfig
 import com.example.phonecamera.viewer.components.AddEditCameraDialog
 import com.example.phonecamera.viewer.components.CameraCell
 import com.example.phonecamera.viewer.components.DiscoveryBottomSheet
@@ -45,6 +46,7 @@ fun ViewerScreen(
     viewModel: ViewerViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val playersState by viewModel.playersState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -76,6 +78,7 @@ fun ViewerScreen(
 
     // null = closed, -1 = new, 0..3 = edit slot
     var dialogSlot by remember { mutableStateOf<Int?>(null) }
+    var tempPrefillConfig by remember { mutableStateOf<CameraConfig?>(null) }
     var showDiscovery by remember { mutableStateOf(false) }
     var fullscreenSlot by rememberSaveable { mutableStateOf<Int?>(null) }
     var wasInGridBeforeFullscreen by rememberSaveable { mutableStateOf(false) }
@@ -201,6 +204,7 @@ fun ViewerScreen(
                 slotIndex = i,
                 config = uiState.cameras.getOrNull(i),
                 playerState = uiState.playerStateFor(i),
+                exoPlayer = playersState[i],
                 useTcp = uiState.useTcp,
                 isAudioEnabled = uiState.selectedAudioSlot == i,
                 onToggleAudio = { viewModel.toggleAudio(i) },
@@ -212,6 +216,7 @@ fun ViewerScreen(
                 onPlayerReady = { viewModel.onPlayerReady(i) },
                 onPlayerError = { err -> viewModel.onPlayerError(i, err) },
                 onSetRemoteQuality = if (uiState.cameras.getOrNull(i)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(i, h) } else null,
+                onSetRemoteFps = if (uiState.cameras.getOrNull(i)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(i, fps) } else null,
                 modifier = modifier
             )
         } else if (isLandscape) {
@@ -232,6 +237,7 @@ fun ViewerScreen(
                             slotIndex = 0,
                             config = uiState.cameras.getOrNull(0),
                             playerState = uiState.playerStateFor(0),
+                            exoPlayer = playersState[0],
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 0,
                             onToggleAudio = { viewModel.toggleAudio(0) },
@@ -243,12 +249,14 @@ fun ViewerScreen(
                             onPlayerReady = { viewModel.onPlayerReady(0) },
                             onPlayerError = { err -> viewModel.onPlayerError(0, err) },
                             onSetRemoteQuality = if (uiState.cameras.getOrNull(0)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(0, h) } else null,
+                            onSetRemoteFps = if (uiState.cameras.getOrNull(0)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(0, fps) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
                         CameraCell(
                             slotIndex = 1,
                             config = uiState.cameras.getOrNull(1),
                             playerState = uiState.playerStateFor(1),
+                            exoPlayer = playersState[1],
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 1,
                             onToggleAudio = { viewModel.toggleAudio(1) },
@@ -260,6 +268,7 @@ fun ViewerScreen(
                             onPlayerReady = { viewModel.onPlayerReady(1) },
                             onPlayerError = { err -> viewModel.onPlayerError(1, err) },
                             onSetRemoteQuality = if (uiState.cameras.getOrNull(1)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(1, h) } else null,
+                            onSetRemoteFps = if (uiState.cameras.getOrNull(1)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(1, fps) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
                     }
@@ -269,6 +278,7 @@ fun ViewerScreen(
                             slotIndex = 2,
                             config = uiState.cameras.getOrNull(2),
                             playerState = uiState.playerStateFor(2),
+                            exoPlayer = playersState[2],
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 2,
                             onToggleAudio = { viewModel.toggleAudio(2) },
@@ -280,12 +290,14 @@ fun ViewerScreen(
                             onPlayerReady = { viewModel.onPlayerReady(2) },
                             onPlayerError = { err -> viewModel.onPlayerError(2, err) },
                             onSetRemoteQuality = if (uiState.cameras.getOrNull(2)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(2, h) } else null,
+                            onSetRemoteFps = if (uiState.cameras.getOrNull(2)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(2, fps) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
                         CameraCell(
                             slotIndex = 3,
                             config = uiState.cameras.getOrNull(3),
                             playerState = uiState.playerStateFor(3),
+                            exoPlayer = playersState[3],
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == 3,
                             onToggleAudio = { viewModel.toggleAudio(3) },
@@ -297,6 +309,7 @@ fun ViewerScreen(
                             onPlayerReady = { viewModel.onPlayerReady(3) },
                             onPlayerError = { err -> viewModel.onPlayerError(3, err) },
                             onSetRemoteQuality = if (uiState.cameras.getOrNull(3)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(3, h) } else null,
+                            onSetRemoteFps = if (uiState.cameras.getOrNull(3)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(3, fps) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
                     }
@@ -306,7 +319,7 @@ fun ViewerScreen(
             // ─── PORTRAIT MODE (1-Column List) ───
             val activeSlots = uiState.cameras.withIndex().filter { it.value != null }
             val emptySlotIndex = uiState.cameras.indexOfFirst { it == null }
-
+ 
             LazyColumn(
                 modifier = modifier.padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -316,7 +329,7 @@ fun ViewerScreen(
                     val index = indexedValue.index
                     val config = indexedValue.value
                     val state = uiState.playerStateFor(index)
-
+ 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -327,6 +340,7 @@ fun ViewerScreen(
                             slotIndex = index,
                             config = config,
                             playerState = state,
+                            exoPlayer = playersState[index],
                             useTcp = uiState.useTcp,
                             isAudioEnabled = uiState.selectedAudioSlot == index,
                             onToggleAudio = { viewModel.toggleAudio(index) },
@@ -341,6 +355,7 @@ fun ViewerScreen(
                             onPlayerReady = { viewModel.onPlayerReady(index) },
                             onPlayerError = { err -> viewModel.onPlayerError(index, err) },
                             onSetRemoteQuality = if (config?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(index, h) } else null,
+                            onSetRemoteFps = if (config?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(index, fps) } else null,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -357,6 +372,7 @@ fun ViewerScreen(
                                 slotIndex = emptySlotIndex,
                                 config = null,
                                 playerState = PlayerState.Idle,
+                                exoPlayer = null,
                                 useTcp = uiState.useTcp,
                                 isAudioEnabled = false,
                                 onToggleAudio = {},
@@ -381,12 +397,23 @@ fun ViewerScreen(
         val existing = uiState.cameras.getOrNull(slot)
         AddEditCameraDialog(
             slotIndex = slot,
-            initialConfig = existing,
-            onConfirm = { config -> viewModel.saveCamera(config); dialogSlot = null },
+            initialConfig = existing ?: tempPrefillConfig,
+            onConfirm = { config ->
+                viewModel.saveCamera(config)
+                dialogSlot = null
+                tempPrefillConfig = null
+            },
             onDelete = if (existing != null) {
-                { viewModel.deleteCamera(slot); dialogSlot = null }
+                {
+                    viewModel.deleteCamera(slot)
+                    dialogSlot = null
+                    tempPrefillConfig = null
+                }
             } else null,
-            onDismiss = { dialogSlot = null }
+            onDismiss = {
+                dialogSlot = null
+                tempPrefillConfig = null
+            }
         )
     }
 
@@ -395,11 +422,25 @@ fun ViewerScreen(
         DiscoveryBottomSheet(
             isScanning = uiState.isScanning,
             discovered = uiState.discoveredCameras,
-            occupiedSlots = uiState.occupiedRtspUrls,
-            onAddCamera = { camera ->
-                viewModel.addDiscoveredCamera(camera)
-                showDiscovery = false
-            },
+            occupiedSlots = uiState.occupiedHosts,
+                            onAddCamera = { camera ->
+                                val slot = uiState.firstEmptySlot
+                                if (slot != null) {
+                                    // Prefill config from discovered camera, requiring user to input PIN code
+                                    val prefilled = CameraConfig(
+                                        id = slot,
+                                        name = camera.displayName,
+                                        host = camera.host,
+                                        port = camera.port,
+                                        isPhoneCamera = true,
+                                        pinCode = ""
+                                    )
+                                    // We will store this temporary prefill in a state to pass to AddEditCameraDialog
+                                    tempPrefillConfig = prefilled
+                                    dialogSlot = slot
+                                }
+                                showDiscovery = false
+                            },
             onDismiss = { showDiscovery = false },
             sheetState = sheetState
         )

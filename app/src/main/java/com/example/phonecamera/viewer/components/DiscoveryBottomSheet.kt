@@ -90,18 +90,18 @@ fun DiscoveryBottomSheet(
             Spacer(modifier = Modifier.height(12.dp))
 
             // ─── Camera list ───
-            if (discovered.isEmpty()) {
+            val filteredDiscovered = discovered.filter { it.host !in occupiedSlots }
+            if (filteredDiscovered.isEmpty()) {
                 EmptyDiscoveryState(isScanning)
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.heightIn(max = 400.dp)
                 ) {
-                    items(discovered, key = { it.serviceId }) { camera ->
-                        val alreadyAdded = camera.rtspUrl in occupiedSlots
+                    items(filteredDiscovered, key = { it.serviceId }) { camera ->
                         DiscoveredCameraRow(
                             camera = camera,
-                            alreadyAdded = alreadyAdded,
+                            alreadyAdded = false,
                             onAdd = { onAddCamera(camera) }
                         )
                     }
