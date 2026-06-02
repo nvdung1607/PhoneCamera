@@ -69,11 +69,10 @@
 | `(root)` | `MainActivity.kt` | Entry point, Navigation setup, NavHost |
 | `navigation/` | `Screen.kt` | Định nghĩa 3 route dưới dạng sealed interface |
 | `home/` | `HomeScreen.kt`, `HomeViewModel.kt` | Màn hình chọn Streamer/Viewer, permission state |
-| `streamer/` | `StreamerScreen.kt`, `StreamerViewModel.kt`, `ControlServer.kt` | Toàn bộ logic phát RTSP stream + TCP server |
+| `streamer/` | `StreamerScreen.kt`, `StreamerViewModel.kt` | Toàn bộ UI và logic phát RTSP stream |
 | `viewer/` | `ViewerScreen.kt`, `ViewerViewModel.kt`, `components/` | Xem camera, manage ExoPlayers, remote control |
 | `data/` | `CameraRepository.kt` | Đọc/ghi danh sách camera vào DataStore |
-| `data/network/` | `CameraControlClient.kt` | TCP client gửi lệnh HELLO/BYE/SET_QUALITY |
-| `data/nsd/` | `NsdHelper.kt`, `DiscoveredCamera.kt` | mDNS wrapper + Camera data model |
+| `network/` | `NsdHelper.kt`, `DiscoveredCamera.kt`, `ControlServer.kt`, `CameraControlClient.kt` | Toàn bộ giao tiếp mạng: mDNS + TCP server/client |
 | `ui/theme/` | `Color.kt`, `Theme.kt`, `Type.kt` | Design system: colors, typography |
 | `utils/` | `AppLog.kt` | Centralized logging |
 

@@ -40,19 +40,18 @@ phoneCamera/
 │           │   └── HomeViewModel.kt      ← Quản lý permission state
 │           ├── streamer/
 │           │   ├── StreamerScreen.kt     ← UI phát camera
-│           │   ├── StreamerViewModel.kt  ← Logic phát RTSP + NSD register
-│           │   └── ControlServer.kt      ← TCP server nhận lệnh từ Viewer
+│           │   └── StreamerViewModel.kt  ← Logic phát RTSP + NSD register
 │           ├── viewer/
 │           │   ├── ViewerScreen.kt       ← UI xem camera (grid 4 slot)
 │           │   ├── ViewerViewModel.kt    ← Logic kết nối RTSP + NSD discover
 │           │   └── components/           ← Các Composable con
 │           ├── data/
-│           │   ├── CameraRepository.kt   ← Lưu/đọc config từ DataStore
-│           │   ├── network/
-│           │   │   └── CameraControlClient.kt ← TCP client gửi lệnh đến Streamer
-│           │   └── nsd/
-│           │       ├── NsdHelper.kt      ← Wrapper NsdManager (register/discover)
-│           │       └── DiscoveredCamera.kt ← Data model camera tìm qua NSD
+│           │   └── CameraRepository.kt   ← Đọc/ghi config camera từ DataStore
+│           ├── network/                  ← Toàn bộ giao tiếp mạng tập trung tại đây
+│           │   ├── NsdHelper.kt          ← Wrapper NsdManager (register/discover)
+│           │   ├── DiscoveredCamera.kt   ← Data model camera tìm qua NSD
+│           │   ├── ControlServer.kt      ← TCP server nhận lệnh từ Viewer
+│           │   └── CameraControlClient.kt ← TCP client gửi lệnh đến Streamer
 │           ├── ui/theme/                 ← Design system (Color, Type, Theme)
 │           └── utils/
 │               └── AppLog.kt             ← Logging utility

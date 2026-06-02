@@ -23,12 +23,15 @@ graph TB
         VVM["ViewerViewModel\n(player management)"]
     end
 
-    subgraph "💾 Data Layer"
-        CR["CameraRepository\n(DataStore persistence)"]
+    subgraph "🌐 Network Layer"
         NSD1["NsdHelper\n(register service)"]
         NSD2["NsdHelper\n(discover services)"]
         CS["ControlServer\n(TCP port 8081)"]
         CC["CameraControlClient\n(TCP client)"]
+    end
+
+    subgraph "💾 Data Layer"
+        CR["CameraRepository\n(DataStore persistence)"]
     end
 
     subgraph "📡 External / Hardware"
@@ -70,10 +73,10 @@ graph TB
     style SVM fill:#7B68EE,color:#fff
     style VVM fill:#7B68EE,color:#fff
     style CR fill:#50C878,color:#fff
-    style NSD1 fill:#50C878,color:#fff
-    style NSD2 fill:#50C878,color:#fff
-    style CS fill:#50C878,color:#fff
-    style CC fill:#50C878,color:#fff
+    style NSD1 fill:#FF8C00,color:#fff
+    style NSD2 fill:#FF8C00,color:#fff
+    style CS fill:#FF8C00,color:#fff
+    style CC fill:#FF8C00,color:#fff
 ```
 
 ---
@@ -122,12 +125,12 @@ _uiState.update { it.copy(isStreaming = true) }
 
 **Công nghệ**: DataStore, NsdManager (Android), TCP Sockets
 
-| Component | Vai trò |
-|-----------|---------|
-| `CameraRepository` | Single source of truth cho danh sách camera — đọc/ghi DataStore |
-| `NsdHelper` | Wrapper NsdManager — register service (Streamer) và discover services (Viewer) |
-| `ControlServer` | TCP server trên port 8081 — nhận text commands từ Viewer |
-| `CameraControlClient` | TCP client — gửi commands HELLO/BYE/SET_QUALITY/SET_FPS đến Streamer |
+| Component | Package | Vai trò |
+|-----------|---------|---------|
+| `CameraRepository` | `data/` | Single source of truth cho danh sách camera — đọc/ghi DataStore |
+| `NsdHelper` | `network/` | Wrapper NsdManager — register service (Streamer) và discover services (Viewer) |
+| `ControlServer` | `network/` | TCP server trên port 8081 — nhận text commands từ Viewer |
+| `CameraControlClient` | `network/` | TCP client — gửi commands HELLO/BYE/SET_QUALITY/SET_FPS đến Streamer |
 
 ---
 
