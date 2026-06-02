@@ -1,4 +1,4 @@
-package com.example.phonecamera.data.nsd
+package com.example.phonecamera.network
 
 import android.content.Context
 import android.net.nsd.NsdManager

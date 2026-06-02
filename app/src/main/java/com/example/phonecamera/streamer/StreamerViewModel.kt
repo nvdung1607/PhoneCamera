@@ -5,7 +5,8 @@ import java.net.NetworkInterface
 import java.util.Collections
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.phonecamera.data.nsd.NsdHelper
+import com.example.phonecamera.network.ControlServer
+import com.example.phonecamera.network.NsdHelper
 import com.example.phonecamera.utils.AppLog
 import com.pedro.common.ConnectChecker
 import com.pedro.encoder.input.video.CameraHelper

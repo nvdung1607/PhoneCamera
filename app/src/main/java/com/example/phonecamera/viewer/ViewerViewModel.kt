@@ -6,12 +6,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.phonecamera.data.CameraConfig
 import com.example.phonecamera.data.CameraRepository
-import com.example.phonecamera.data.nsd.DiscoveredCamera
-import com.example.phonecamera.data.nsd.NsdHelper
-import com.example.phonecamera.streamer.ControlServer
+import com.example.phonecamera.network.DiscoveredCamera
+import com.example.phonecamera.network.NsdHelper
+import com.example.phonecamera.network.ControlServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import com.example.phonecamera.data.network.CameraControlClient
+import com.example.phonecamera.network.CameraControlClient
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

@@ -19,7 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.phonecamera.data.nsd.DiscoveredCamera
+import com.example.phonecamera.network.DiscoveredCamera
 import com.example.phonecamera.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
