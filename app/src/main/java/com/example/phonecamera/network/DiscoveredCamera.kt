@@ -1,4 +1,4 @@
-package com.example.phonecamera.data.nsd
+package com.example.phonecamera.network
 
 /**
  * Represents a camera discovered via mDNS/NSD on the local network.

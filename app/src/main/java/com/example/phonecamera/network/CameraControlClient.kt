@@ -1,7 +1,6 @@
-package com.example.phonecamera.data.network
+package com.example.phonecamera.network
 
 import com.example.phonecamera.utils.AppLog
-import com.example.phonecamera.streamer.ControlServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
@@ -30,10 +29,10 @@ class CameraControlClient {
             Socket().use { socket ->
                 socket.connect(InetSocketAddress(host, ControlServer.CONTROL_PORT), timeoutMs)
                 socket.soTimeout = timeoutMs
-                
+
                 val writer = java.io.PrintWriter(socket.getOutputStream(), true)
                 writer.println(command)
-                
+
                 val reader = java.io.BufferedReader(java.io.InputStreamReader(socket.getInputStream()))
                 val response = reader.readLine()?.trim()
                 AppLog.net("<-- RECV RESPONSE from $host: '$response'")

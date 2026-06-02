@@ -333,18 +333,18 @@ app/src/main/java/com/example/phonecamera/
 ├── navigation/
 │   └── Screen.kt                
 ├── data/
-│   ├── CameraRepository.kt      
-│   ├── CameraConfig.kt          # Thực thể cấu hình camera (id, name, host, port, pinCode, isPhoneCamera)
-│   └── nsd/
-│       ├── NsdHelper.kt         
-│       └── DiscoveredCamera.kt  
+│   └── CameraRepository.kt      # Persistence: DataStore CRUD cho CameraConfig
+├── network/                      # ← Toàn bộ giao tiếp mạng tập trung tại đây
+│   ├── NsdHelper.kt             # mDNS: đăng ký (Streamer) và khám phá (Viewer)
+│   ├── DiscoveredCamera.kt      # Model camera tìm được qua NSD
+│   ├── ControlServer.kt         # TCP Server :8081 — nhận lệnh chất lượng, FPS kèm xác thực PIN
+│   └── CameraControlClient.kt  # TCP Client — gửi lệnh HELLO/BYE/SET_QUALITY/SET_FPS
 ├── home/
 │   ├── HomeScreen.kt            
 │   └── HomeViewModel.kt         
 ├── streamer/
 │   ├── StreamerScreen.kt        # UI Streamer: điều khiển phát, lật camera, thông tin kết nối, PIN card, FPS selector
-│   ├── StreamerViewModel.kt     # Quản lý camera phần cứng, điều phối RtspServer và ControlServer, check phần cứng camera
-│   └── ControlServer.kt         # TCP Server lắng nghe lệnh chất lượng, FPS từ xa kèm so khớp PIN bảo mật
+│   └── StreamerViewModel.kt     # Quản lý camera phần cứng, điều phối RtspServer và ControlServer, check phần cứng camera
 ├── viewer/
 │   ├── ViewerScreen.kt          
 │   ├── ViewerViewModel.kt       # Quản lý các luồng phát ExoPlayer, gửi lệnh TCP kèm PIN và nhận dạng NSD

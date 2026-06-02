@@ -1,4 +1,4 @@
-package com.example.phonecamera.streamer
+package com.example.phonecamera.network
 
 import com.example.phonecamera.utils.AppLog
 import kotlinx.coroutines.CoroutineScope
