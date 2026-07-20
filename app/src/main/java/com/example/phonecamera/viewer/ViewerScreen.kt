@@ -222,6 +222,7 @@ fun ViewerScreen(
                 onPlayerError = { err -> viewModel.onPlayerError(i, err) },
                 qualityMode = uiState.qualityModeFor(i),
                 realtimeFps = uiState.fpsFor(i),
+                activeBitrate = uiState.activeBitrateFor(i),
                 onSetRemoteQualityMode = if (uiState.cameras.getOrNull(i)?.isPhoneCamera == true) { mode -> viewModel.setRemoteQualityMode(i, mode) } else null,
                 modifier = modifier
             )
@@ -256,6 +257,7 @@ fun ViewerScreen(
                             onPlayerError = { err -> viewModel.onPlayerError(0, err) },
                             qualityMode = uiState.qualityModeFor(0),
                             realtimeFps = uiState.fpsFor(0),
+                            activeBitrate = uiState.activeBitrateFor(0),
                             onSetRemoteQualityMode = if (uiState.cameras.getOrNull(0)?.isPhoneCamera == true) { mode -> viewModel.setRemoteQualityMode(0, mode) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
@@ -276,6 +278,7 @@ fun ViewerScreen(
                             onPlayerError = { err -> viewModel.onPlayerError(1, err) },
                             qualityMode = uiState.qualityModeFor(1),
                             realtimeFps = uiState.fpsFor(1),
+                            activeBitrate = uiState.activeBitrateFor(1),
                             onSetRemoteQualityMode = if (uiState.cameras.getOrNull(1)?.isPhoneCamera == true) { mode -> viewModel.setRemoteQualityMode(1, mode) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
@@ -299,6 +302,7 @@ fun ViewerScreen(
                             onPlayerError = { err -> viewModel.onPlayerError(2, err) },
                             qualityMode = uiState.qualityModeFor(2),
                             realtimeFps = uiState.fpsFor(2),
+                            activeBitrate = uiState.activeBitrateFor(2),
                             onSetRemoteQualityMode = if (uiState.cameras.getOrNull(2)?.isPhoneCamera == true) { mode -> viewModel.setRemoteQualityMode(2, mode) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
@@ -319,6 +323,7 @@ fun ViewerScreen(
                             onPlayerError = { err -> viewModel.onPlayerError(3, err) },
                             qualityMode = uiState.qualityModeFor(3),
                             realtimeFps = uiState.fpsFor(3),
+                            activeBitrate = uiState.activeBitrateFor(3),
                             onSetRemoteQualityMode = if (uiState.cameras.getOrNull(3)?.isPhoneCamera == true) { mode -> viewModel.setRemoteQualityMode(3, mode) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
@@ -366,6 +371,7 @@ fun ViewerScreen(
                             onPlayerError = { err -> viewModel.onPlayerError(index, err) },
                             qualityMode = uiState.qualityModeFor(index),
                             realtimeFps = uiState.fpsFor(index),
+                            activeBitrate = uiState.activeBitrateFor(index),
                             onSetRemoteQualityMode = if (config?.isPhoneCamera == true) { mode -> viewModel.setRemoteQualityMode(index, mode) } else null,
                             modifier = Modifier.fillMaxSize()
                         )

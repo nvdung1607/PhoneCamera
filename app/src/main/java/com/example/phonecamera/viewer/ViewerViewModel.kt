@@ -49,11 +49,13 @@ data class ViewerUiState(
     val discoveredCameras: List<DiscoveredCamera> = emptyList(),
     val discoveryBadgeCount: Int = 0,
     val realtimeFps: Map<Int, Int> = emptyMap(),
-    val qualityModes: Map<Int, QualityMode> = emptyMap()
+    val qualityModes: Map<Int, QualityMode> = emptyMap(),
+    val activeBitrates: Map<Int, Int> = emptyMap()
 ) {
     fun playerStateFor(index: Int): PlayerState = playerStates[index] ?: PlayerState.Idle
     fun qualityModeFor(index: Int): QualityMode = qualityModes[index] ?: QualityMode.AUTO
     fun fpsFor(index: Int): Int = realtimeFps[index] ?: 0
+    fun activeBitrateFor(index: Int): Int = activeBitrates[index] ?: 1_200_000
 
     val occupiedHosts: Set<String>
         get() = cameras.filterNotNull().map { it.host }.toSet()
@@ -78,7 +80,7 @@ class ViewerViewModel(
     private val _uiState = MutableStateFlow(ViewerUiState())
     val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
 
-    private val activeBitrates = mutableMapOf<Int, Int>()
+
 
     init {
         AppLog.d("ViewerViewModel init")
@@ -404,11 +406,15 @@ class ViewerViewModel(
         _uiState.update { it.copy(snackbarMessage = null) } }
 
     private fun getCurrentBitrateFor(slotIndex: Int): Int {
-        return activeBitrates[slotIndex] ?: 1_200_000
+        return _uiState.value.activeBitrateFor(slotIndex)
     }
 
     private fun setCurrentBitrateFor(slotIndex: Int, bitrate: Int) {
-        activeBitrates[slotIndex] = bitrate
+        _uiState.update { current ->
+            val bitrates = current.activeBitrates.toMutableMap()
+            bitrates[slotIndex] = bitrate
+            current.copy(activeBitrates = bitrates)
+        }
     }
 
     private fun getLowerBitrate(current: Int): Int {
@@ -446,7 +452,7 @@ class ViewerViewModel(
                 val response = controlClient.setBitrate(cam.host, bitrateBps, cam.pinCode)
                 AppLog.d("SET_BITRATE response: $response")
                 if (response == "OK") {
-                    activeBitrates[slotIndex] = bitrateBps
+                    setCurrentBitrateFor(slotIndex, bitrateBps)
                 } else {
                     _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi tốc độ truyền: $response") }
                 }
@@ -457,7 +463,7 @@ class ViewerViewModel(
             viewModelScope.launch {
                 val response = controlClient.setBitrate(cam.host, defaultAutoBitrate, cam.pinCode)
                 if (response == "OK") {
-                    activeBitrates[slotIndex] = defaultAutoBitrate
+                    setCurrentBitrateFor(slotIndex, defaultAutoBitrate)
                 }
             }
         }

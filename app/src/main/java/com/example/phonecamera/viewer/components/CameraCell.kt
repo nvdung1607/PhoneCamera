@@ -63,6 +63,7 @@ fun CameraCell(
     onPlayerError: (String) -> Unit,
     qualityMode: QualityMode = QualityMode.AUTO,
     realtimeFps: Int = 0,
+    activeBitrate: Int = 1_200_000,
     onSetRemoteQualityMode: ((QualityMode) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -100,6 +101,7 @@ fun CameraCell(
                     onEdit = onEditClick,
                     qualityMode = qualityMode,
                     realtimeFps = realtimeFps,
+                    activeBitrate = activeBitrate,
                     onSetRemoteQualityMode = onSetRemoteQualityMode
                 )
             else -> EmptyCell(onAddClick)
@@ -121,6 +123,7 @@ private fun ActivePlayerCell(
     onEdit: () -> Unit,
     qualityMode: QualityMode,
     realtimeFps: Int,
+    activeBitrate: Int,
     onSetRemoteQualityMode: ((QualityMode) -> Unit)?
 ) {
     var videoInfo by remember { mutableStateOf("") }
@@ -182,12 +185,17 @@ private fun ActivePlayerCell(
                 Spacer(modifier = Modifier.width(4.dp))
             }
 
-            // Nút đổi chất lượng từ xa (chỉ Phone Camera) tích hợp vào nhãn độ phân giải
             if (onSetRemoteQualityMode != null && !showLoadingOverlay) {
                 Box {
                     val modeLabel = if (qualityMode == QualityMode.AUTO) "Auto" else qualityMode.label.substringBefore(" ")
+                    val bitrateLabel = when (activeBitrate) {
+                        500_000 -> "500 Kbps"
+                        1_200_000 -> "1.2 Mbps"
+                        2_000_000 -> "2.0 Mbps"
+                        else -> "${activeBitrate / 1000} Kbps"
+                    }
                     Text(
-                        text = "$modeLabel (${videoInfo.ifEmpty { "HD" }}) ⚙️",
+                        text = "$modeLabel ($bitrateLabel) ⚙️",
                         fontSize = 9.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
