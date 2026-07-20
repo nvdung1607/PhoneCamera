@@ -93,6 +93,7 @@ fun CameraCell(
                     config = config,
                     exoPlayer = exoPlayer,
                     showLoadingOverlay = playerState is PlayerState.Loading,
+                    loadingMessage = if (playerState is PlayerState.Loading) playerState.message else "Đang kết nối...",
                     isAudioEnabled = isAudioEnabled,
                     onToggleAudio = onToggleAudio,
                     onReload = onRetryClick,
@@ -115,6 +116,7 @@ private fun ActivePlayerCell(
     config: CameraConfig,
     exoPlayer: ExoPlayer?,
     showLoadingOverlay: Boolean,
+    loadingMessage: String = "Đang kết nối...",
     isAudioEnabled: Boolean,
     onToggleAudio: () -> Unit,
     onReload: () -> Unit,
@@ -187,7 +189,12 @@ private fun ActivePlayerCell(
 
             if (onSetRemoteQualityMode != null && !showLoadingOverlay) {
                 Box {
-                    val modeLabel = if (qualityMode == QualityMode.AUTO) "Auto" else qualityMode.label.substringBefore(" ")
+                    val modeLabel = when (qualityMode) {
+                        QualityMode.AUTO -> "Auto"
+                        QualityMode.LD -> "LD"
+                        QualityMode.SD -> "SD"
+                        QualityMode.HD -> "HD"
+                    }
                     val bitrateLabel = when (activeBitrate) {
                         500_000 -> "500 Kbps"
                         1_200_000 -> "1.2 Mbps"
@@ -263,7 +270,7 @@ private fun ActivePlayerCell(
                 CircularProgressIndicator(modifier = Modifier.size(28.dp),
                     color = MaterialTheme.colorScheme.primary, strokeWidth = 2.dp)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Đang kết nối...", style = MaterialTheme.typography.bodySmall,
+                Text(loadingMessage, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
             }
         }

@@ -27,16 +27,19 @@ import androidx.media3.exoplayer.rtsp.RtspMediaSource
 
 sealed class PlayerState {
     data object Idle : PlayerState()
-    data class Loading(val attemptId: Long = System.currentTimeMillis()) : PlayerState()
+    data class Loading(
+        val message: String = "Đang kết nối...",
+        val attemptId: Long = System.currentTimeMillis()
+    ) : PlayerState()
     data object Playing : PlayerState()
     data class Error(val message: String) : PlayerState()
 }
 
-enum class QualityMode(val label: String, val bitrateBps: Int) {
-    AUTO("Tự động", -1),
-    LOW("Thấp (500 Kbps)", 500_000),
-    MEDIUM("Vừa (1.2 Mbps)", 1_200_000),
-    HIGH("Cao (2.0 Mbps)", 2_000_000)
+enum class QualityMode(val label: String, val height: Int, val fps: Int, val bitrateBps: Int) {
+    AUTO("Tự động", 720, 24, 1_200_000),
+    LD("Mượt (360p)", 360, 15, 500_000),
+    SD("Chuẩn (720p)", 720, 24, 1_200_000),
+    HD("Sắc nét (1080p)", 1080, 30, 2_000_000)
 }
 
 data class ViewerUiState(
@@ -114,18 +117,20 @@ class ViewerViewModel(
     }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-    private fun preparePlayer(index: Int, config: CameraConfig, useTcp: Boolean) {
-        AppLog.d("preparePlayer(index=$index, config=${config.name}, useTcp=$useTcp)")
+    private fun preparePlayer(index: Int, config: CameraConfig, useTcp: Boolean, debounceMs: Long = 500L) {
+        AppLog.d("preparePlayer(index=$index, config=${config.name}, useTcp=$useTcp, debounceMs=$debounceMs)")
         // Cancel any pending connect job for this slot immediately
         prepareJobs[index]?.cancel()
         
         // Release the player immediately to close the socket and free up the Server side resource
         releasePlayer(index)
         
-        // Launch new connection task with 500ms debounce/delay
+        // Launch new connection task with configurable debounce delay
         prepareJobs[index] = viewModelScope.launch(Dispatchers.Main) {
-            AppLog.d("Waiting 500ms before connecting slot $index (${config.toRtspUrl()})")
-            delay(500L)
+            if (debounceMs > 0) {
+                AppLog.d("Waiting ${debounceMs}ms before connecting slot $index (${config.toRtspUrl()})")
+                delay(debounceMs)
+            }
             
             val context = this@ViewerViewModel.context
             val loadControl = DefaultLoadControl.Builder()
@@ -169,6 +174,41 @@ class ViewerViewModel(
             }
             activePlayers[index] = player
             _playersState.update { activePlayers.toMap() }
+        }
+    }
+
+    /**
+     * Tái kết nối nhanh bằng cách reuse ExoPlayer instance hiện tại.
+     * Không tạo object mới, không debounce — phù hợp khi đổi độ phân giải.
+     * Nếu player hiện tại không tồn tại, fallback về preparePlayer() với debounceMs=0.
+     */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun reconnectPlayer(index: Int, config: CameraConfig, useTcp: Boolean) {
+        AppLog.d("reconnectPlayer(index=$index, config=${config.name})")
+        val existingPlayer = activePlayers[index]
+        if (existingPlayer != null) {
+            // Reuse existing player: stop → set new source → prepare
+            // Nhanh hơn nhiều so với release + tạo mới (không GC, không socket overhead)
+            prepareJobs[index]?.cancel()
+            prepareJobs[index] = viewModelScope.launch(Dispatchers.Main) {
+                try {
+                    existingPlayer.stop()
+                    val source = RtspMediaSource.Factory()
+                        .setForceUseRtpTcp(useTcp)
+                        .setTimeoutMs(30_000L)
+                        .createMediaSource(MediaItem.fromUri(config.toRtspUrl()))
+                    existingPlayer.setMediaSource(source)
+                    existingPlayer.prepare()
+                    existingPlayer.playWhenReady = true
+                    AppLog.d("reconnectPlayer slot $index: reusing player, reconnecting...")
+                } catch (e: Exception) {
+                    AppLog.e("reconnectPlayer slot $index failed, falling back to preparePlayer", e)
+                    preparePlayer(index, config, useTcp, debounceMs = 0L)
+                }
+            }
+        } else {
+            // Không có player → tạo mới không debounce
+            preparePlayer(index, config, useTcp, debounceMs = 0L)
         }
     }
 
@@ -346,20 +386,25 @@ class ViewerViewModel(
 
     fun onPlayerError(index: Int, errorMsg: String) {
         AppLog.e("✗ Player slot $index error: $errorMsg")
-        setPlayerState(index, PlayerState.Error(errorMsg))
         
         val retries = retryCounts[index] ?: 0
         if (retries < 5) {
             retryCounts[index] = retries + 1
+            setPlayerState(index, PlayerState.Loading("Mất kết nối. Đang thử lại (lần ${retries + 1}/5)..."))
             viewModelScope.launch {
-                delay(3000L)
+                // 3 lần retry đầu dùng delay ngắn hơn (500ms) để recover nhanh sau khi đổi độ phân giải
+                // Sau đó tăng dần lên 1500ms cho các lần retry tiếp theo (tránh flood)
+                val retryDelayMs = if (retries < 3) 500L else 1500L
+                delay(retryDelayMs)
                 val cam = _uiState.value.cameras.getOrNull(index)
                 val currentState = _uiState.value.playerStates[index]
                 if (cam != null && (currentState is PlayerState.Error || currentState is PlayerState.Loading)) {
-                    AppLog.i("Auto-retrying connection for slot $index (attempt ${retries + 1}/5)...")
+                    AppLog.i("Auto-retrying connection for slot $index (attempt ${retries + 1}/5, delay was ${retryDelayMs}ms)...")
                     retryCamera(index)
                 }
             }
+        } else {
+            setPlayerState(index, PlayerState.Error("Không thể kết nối lại sau 5 lần thử. Lỗi: $errorMsg"))
         }
     }
 
@@ -367,9 +412,10 @@ class ViewerViewModel(
         val cam = _uiState.value.cameras.getOrNull(index) ?: return
         AppLog.i("Retrying camera in slot $index (${cam.host}:${cam.port})")
         val newStates = _uiState.value.playerStates.toMutableMap()
-        newStates[index] = PlayerState.Loading()
+        newStates[index] = PlayerState.Loading("Đang kết nối lại...")
         _uiState.value = _uiState.value.copy(playerStates = newStates)
-        preparePlayer(index, cam, _uiState.value.useTcp)
+        // Dùng reconnectPlayer để reuse ExoPlayer instance — nhanh hơn preparePlayer
+        reconnectPlayer(index, cam, _uiState.value.useTcp)
     }
 
     fun toggleTcp() {
@@ -381,7 +427,7 @@ class ViewerViewModel(
             // Force reload by setting all active players back to Loading
             state.cameras.forEachIndexed { i, cam ->
                 if (cam != null) {
-                    newStates[i] = PlayerState.Loading()
+                    newStates[i] = PlayerState.Loading("Đang kết nối lại...")
                     preparePlayer(i, cam, isTcp)
                 }
             }
@@ -445,26 +491,30 @@ class ViewerViewModel(
             current.copy(qualityModes = modes)
         }
         
-        if (mode != QualityMode.AUTO) {
-            val bitrateBps = mode.bitrateBps
-            AppLog.i("setRemoteQualityMode: slot=$slotIndex → manual bitrate $bitrateBps bps @ ${cam.host}")
-            viewModelScope.launch {
-                val response = controlClient.setBitrate(cam.host, bitrateBps, cam.pinCode)
-                AppLog.d("SET_BITRATE response: $response")
-                if (response == "OK") {
-                    setCurrentBitrateFor(slotIndex, bitrateBps)
-                } else {
-                    _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi tốc độ truyền: $response") }
-                }
-            }
-        } else {
-            AppLog.i("setRemoteQualityMode: slot=$slotIndex → Auto ABR enabled @ ${cam.host}")
-            val defaultAutoBitrate = QualityMode.MEDIUM.bitrateBps
-            viewModelScope.launch {
-                val response = controlClient.setBitrate(cam.host, defaultAutoBitrate, cam.pinCode)
-                if (response == "OK") {
-                    setCurrentBitrateFor(slotIndex, defaultAutoBitrate)
-                }
+        val height = if (mode != QualityMode.AUTO) mode.height else QualityMode.SD.height
+        val bitrateBps = if (mode != QualityMode.AUTO) mode.bitrateBps else QualityMode.SD.bitrateBps
+        val label = if (mode != QualityMode.AUTO) mode.label else "Tự động (${QualityMode.SD.label})"
+
+        AppLog.i("setRemoteQualityMode: slot=$slotIndex → $label @ ${cam.host}")
+        setPlayerState(slotIndex, PlayerState.Loading("Đang chuyển sang $label..."))
+
+        viewModelScope.launch {
+            // Gửi lệnh đổi chất lượng đến streamer.
+            // Pedro stopStream() chỉ dừng RTP — TCP connection vẫn giữ nguyên.
+            // Viewer reconnect nhanh qua reconnectPlayer() sau khi streamer reconfigure xong.
+            val response = controlClient.setQuality(cam.host, height, cam.pinCode)
+            AppLog.d("SET_QUALITY response: $response")
+
+            if (response == "OK") {
+                setCurrentBitrateFor(slotIndex, bitrateBps)
+                // Streamer đang reconfigure encoder (~100-200ms).
+                // Chờ tối thiểu 150ms để encoder restart, sau đó reconnect ngay.
+                // reconnectPlayer() reuse ExoPlayer hiện tại — không tạo object mới, không debounce.
+                delay(150L)
+                reconnectPlayer(slotIndex, cam, _uiState.value.useTcp)
+            } else {
+                setPlayerState(slotIndex, PlayerState.Error("Không thể chuyển chất lượng: $response"))
+                _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi chất lượng: $response") }
             }
         }
     }

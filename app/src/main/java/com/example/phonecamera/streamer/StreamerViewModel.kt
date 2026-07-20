@@ -7,9 +7,7 @@ import com.example.phonecamera.network.ControlServer
 import com.example.phonecamera.network.NsdHelper
 import com.example.phonecamera.utils.AppLog
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -41,6 +39,17 @@ sealed interface StreamerCommand {
     data object StopStream : StreamerCommand
     data object SwitchCamera : StreamerCommand
     data class SetBitrate(val bitrateBps: Int) : StreamerCommand
+    /**
+     * Reconfigure encoder với resolution/fps/bitrate mới mà không cần dừng RTSP server.
+     * Streamer sẽ: stopStream nhanh → prepareVideo mới → startStream lại.
+     * Preview camera vẫn chạy liên tục trong quá trình này.
+     */
+    data class ChangeResolution(
+        val width: Int,
+        val height: Int,
+        val fps: Int,
+        val bitrate: Int
+    ) : StreamerCommand
 }
 
 data class StreamerUiState(
@@ -233,28 +242,43 @@ class StreamerViewModel(
 
     private fun changeQualityRemote(resolution: Resolution) {
         AppLog.d("changeQualityRemote(resolution=${resolution.label})")
-        viewModelScope.launch(Dispatchers.Main) {
-            val wasStreaming = _uiState.value.isStreaming
-            _uiState.update { it.copy(selectedResolution = resolution) }
-            if (wasStreaming) {
-                stopStream()
-                delay(500L)
-                startStream()
-            }
+        val targetFps = when (resolution) {
+            Resolution.P360 -> 15
+            Resolution.P720 -> 24
+            Resolution.P1080 -> 30
+        }
+        _uiState.update { it.copy(selectedResolution = resolution, fps = targetFps) }
+        if (_uiState.value.isStreaming) {
+            // Emit ChangeResolution thay vì stop/delay/start — encoder reconfigure nhanh
+            // Preview camera vẫn tiếp tục chạy, không gây gián đoạn phía máy phát
+            _commands.tryEmit(
+                StreamerCommand.ChangeResolution(
+                    width = resolution.width,
+                    height = resolution.height,
+                    fps = targetFps,
+                    bitrate = resolution.bitrateBps
+                )
+            )
+            AppLog.i("Emitted ChangeResolution: ${resolution.label} @ ${targetFps}fps")
         }
     }
 
     private fun changeFpsRemote(fps: Int) {
         AppLog.d("changeFpsRemote(fps=$fps)")
         if (fps !in listOf(15, 24, 30)) return
-        viewModelScope.launch(Dispatchers.Main) {
-            val wasStreaming = _uiState.value.isStreaming
-            _uiState.update { it.copy(fps = fps) }
-            if (wasStreaming) {
-                stopStream()
-                delay(500L)
-                startStream()
-            }
+        _uiState.update { it.copy(fps = fps) }
+        if (_uiState.value.isStreaming) {
+            val res = _uiState.value.selectedResolution
+            // Emit ChangeResolution với fps mới — encoder reconfigure nhanh
+            _commands.tryEmit(
+                StreamerCommand.ChangeResolution(
+                    width = res.width,
+                    height = res.height,
+                    fps = fps,
+                    bitrate = res.bitrateBps
+                )
+            )
+            AppLog.i("Emitted ChangeResolution for FPS change: ${res.label} @ ${fps}fps")
         }
     }
 

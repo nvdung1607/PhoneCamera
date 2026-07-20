@@ -167,6 +167,36 @@ fun StreamerScreen(
                             }
                         }
                     }
+                    is StreamerCommand.ChangeResolution -> {
+                        // Seamless resolution switch: chỉ reconfigure encoder, không dừng RTSP server hẳn
+                        // Preview camera vẫn chạy liên tục → máy phát không bị gián đoạn
+                        rtspCamera?.let { cam ->
+                            if (cam.isStreaming) {
+                                AppLog.i("ChangeResolution: stopping stream for reconfigure → ${cmd.width}x${cmd.height} @ ${cmd.fps}fps")
+                                cam.stopStream()
+                            }
+                            // Reconfigure encoder với resolution mới
+                            val rotation = CameraHelper.getCameraOrientation(context)
+                            val videoOk = cam.prepareVideo(cmd.width, cmd.height, cmd.fps, cmd.bitrate, rotation)
+                            if (!videoOk) {
+                                viewModel.onStreamStartFailed("Không thể reconfigure encoder video.")
+                                return@collect
+                            }
+                            // Cập nhật preview resolution (camera vẫn đang chạy, chỉ đổi buffer size)
+                            if (!cam.isOnPreview) {
+                                val facing = if (uiState.useFrontCamera) CameraHelper.Facing.FRONT else CameraHelper.Facing.BACK
+                                cam.startPreview(facing, cmd.width, cmd.height)
+                            }
+                            // Restart stream với encoder mới — RTSP server TCP không bị đóng
+                            cam.startStream()
+                            if (cam.isStreaming) {
+                                AppLog.i("ChangeResolution: stream restarted successfully at ${cmd.width}x${cmd.height}")
+                                viewModel.onStreamStartedSuccess()
+                            } else {
+                                viewModel.onStreamStartFailed("Không thể khởi động lại stream sau khi đổi độ phân giải.")
+                            }
+                        } ?: viewModel.onStreamStartFailed("Camera chưa sẵn sàng để đổi độ phân giải.")
+                    }
                 }
             }
         }
