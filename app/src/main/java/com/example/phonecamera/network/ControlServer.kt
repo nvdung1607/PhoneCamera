@@ -82,20 +82,30 @@ class ControlServer(val port: Int = CONTROL_PORT) {
         AppLog.d("ControlServer stopped")
     }
 
-    private fun parseCommand(line: String, fromIp: String): Command? {
+    internal fun parseCommand(line: String, fromIp: String): Command? {
         AppLog.d("parseCommand(line=$line, fromIp=$fromIp)")
-        val parts = line.split(" ")
+        val parts = line.split(" ").filter { it.isNotEmpty() }
         if (parts.isEmpty()) return null
         return when (parts[0].uppercase()) {
             "HELLO" -> {
-                val deviceName = parts.getOrNull(1) ?: fromIp
-                val pin = parts.getOrNull(2) ?: ""
-                Command.Hello(deviceName = deviceName, pin = pin, ip = fromIp)
+                if (parts.size >= 3) {
+                    val pin = parts.last()
+                    val deviceName = parts.subList(1, parts.size - 1).joinToString(" ")
+                    Command.Hello(deviceName = deviceName, pin = pin, ip = fromIp)
+                } else {
+                    val deviceName = parts.getOrNull(1) ?: fromIp
+                    Command.Hello(deviceName = deviceName, pin = "", ip = fromIp)
+                }
             }
             "BYE" -> {
-                val deviceName = parts.getOrNull(1) ?: fromIp
-                val pin = parts.getOrNull(2) ?: ""
-                Command.Bye(deviceName = deviceName, pin = pin, ip = fromIp)
+                if (parts.size >= 3) {
+                    val pin = parts.last()
+                    val deviceName = parts.subList(1, parts.size - 1).joinToString(" ")
+                    Command.Bye(deviceName = deviceName, pin = pin, ip = fromIp)
+                } else {
+                    val deviceName = parts.getOrNull(1) ?: fromIp
+                    Command.Bye(deviceName = deviceName, pin = "", ip = fromIp)
+                }
             }
             "SET_QUALITY" -> {
                 val h = parts.getOrNull(1)?.toIntOrNull()

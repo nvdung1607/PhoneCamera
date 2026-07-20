@@ -39,11 +39,16 @@ import com.example.phonecamera.viewer.components.AddEditCameraDialog
 import com.example.phonecamera.viewer.components.CameraCell
 import com.example.phonecamera.viewer.components.DiscoveryBottomSheet
 
+import com.example.phonecamera.PhoneCameraApp
+import com.example.phonecamera.di.ViewModelFactory
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewerScreen(
     onBack: () -> Unit,
-    viewModel: ViewerViewModel = viewModel()
+    viewModel: ViewerViewModel = viewModel(
+        factory = ViewModelFactory((LocalContext.current.applicationContext as PhoneCameraApp).container)
+    )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val playersState by viewModel.playersState.collectAsStateWithLifecycle()

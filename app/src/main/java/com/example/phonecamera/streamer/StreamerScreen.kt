@@ -1,9 +1,13 @@
 package com.example.phonecamera.streamer
 
+import android.Manifest
+import android.app.Activity
+import android.content.pm.ActivityInfo
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -14,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -32,14 +37,25 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.phonecamera.PhoneCameraApp
+import com.example.phonecamera.di.ViewModelFactory
 import com.example.phonecamera.ui.theme.*
+import com.example.phonecamera.utils.AppLog
+import com.pedro.common.ConnectChecker
+import com.pedro.encoder.input.video.CameraHelper
+import com.pedro.encoder.utils.gl.AspectRatioMode
 import com.pedro.library.view.OpenGlView
+import com.pedro.rtspserver.RtspServerCamera2
+import kotlinx.coroutines.flow.collect
 
 @Composable
 fun StreamerScreen(
     onBack: () -> Unit,
-    viewModel: StreamerViewModel = viewModel()
+    viewModel: StreamerViewModel = viewModel(
+        factory = ViewModelFactory((LocalContext.current.applicationContext as PhoneCameraApp).container)
+    )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
@@ -47,10 +63,35 @@ fun StreamerScreen(
     val context = LocalContext.current
     val view = LocalView.current
 
-    // Chuyển sang landscape và ẩn system bar khi vào màn hình
+    // Reference to physical camera engine kept strictly in View layer
+    var rtspCamera by remember { mutableStateOf<RtspServerCamera2?>(null) }
+
+    // Check camera hardware on view creation and notify ViewModel
+    LaunchedEffect(Unit) {
+        try {
+            val cameraManager = context.getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            val ids = cameraManager.cameraIdList
+            var hasFront = false
+            var hasBack = false
+            for (id in ids) {
+                val chars = cameraManager.getCameraCharacteristics(id)
+                val facing = chars.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING)
+                if (facing == android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT) {
+                    hasFront = true
+                } else if (facing == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) {
+                    hasBack = true
+                }
+            }
+            viewModel.onCameraHardwareChecked(hasFront, hasBack)
+        } catch (e: Exception) {
+            AppLog.e("Failed to check camera hardware", e)
+        }
+    }
+
+    // Set screen to landscape and hide system bars
     DisposableEffect(Unit) {
-        val activity = context as? android.app.Activity
-        activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+        val activity = context as? Activity
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
 
         val window = activity?.window
         if (window != null) {
@@ -62,7 +103,12 @@ fun StreamerScreen(
 
         onDispose {
             viewModel.releaseCamera()
-            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            rtspCamera?.apply {
+                if (isStreaming) stopStream()
+                if (isOnPreview) stopPreview()
+            }
+            rtspCamera = null
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             activity?.window?.let { w ->
                 WindowCompat.getInsetsController(w, view).show(WindowInsetsCompat.Type.systemBars())
                 w.attributes = w.attributes.also { it.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
@@ -70,12 +116,63 @@ fun StreamerScreen(
         }
     }
 
-    // Dừng stream khi app bị đưa xuống nền
-    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        viewModel.stopStream()
+    // Collect command events from ViewModel to control physical camera
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    LaunchedEffect(viewModel.commands, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.commands.collect { cmd ->
+                when (cmd) {
+                    is StreamerCommand.StartStream -> {
+                        rtspCamera?.let { cam ->
+                            if (cam.isOnPreview) {
+                                cam.stopPreview()
+                            }
+                            cam.getStreamClient().setAuthorization("admin", cmd.pinCode)
+                            val rotation = CameraHelper.getCameraOrientation(context)
+                            if (!cam.prepareVideo(cmd.width, cmd.height, cmd.fps, cmd.bitrate, rotation)) {
+                                viewModel.onStreamStartFailed("Không thể chuẩn bị encoder video.")
+                                return@collect
+                            }
+                            if (!cam.prepareAudio()) {
+                                viewModel.onStreamStartFailed("Không thể khởi tạo microphone.")
+                                return@collect
+                            }
+                            cam.startPreview(
+                                if (cmd.useFrontCamera) CameraHelper.Facing.FRONT else CameraHelper.Facing.BACK,
+                                cmd.width,
+                                cmd.height
+                            )
+                            cam.startStream()
+                            if (cam.isStreaming) {
+                                viewModel.onStreamStartedSuccess()
+                            } else {
+                                viewModel.onStreamStartFailed("Không thể bắt đầu phát.")
+                            }
+                        } ?: viewModel.onStreamStartFailed("Camera chưa sẵn sàng.")
+                    }
+                    is StreamerCommand.StopStream -> {
+                        rtspCamera?.let { cam ->
+                            if (cam.isStreaming) cam.stopStream()
+                        }
+                        viewModel.onStreamStopped()
+                    }
+                    is StreamerCommand.SwitchCamera -> {
+                        rtspCamera?.switchCamera()
+                    }
+                }
+            }
+        }
     }
 
-    // Auto-dim màn hình sau 30 giây không tương tác
+    // Stop stream when app goes to background
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        viewModel.stopStream()
+        rtspCamera?.let { cam ->
+            if (cam.isStreaming) cam.stopStream()
+        }
+    }
+
+    // Auto-dim screen after 30 seconds of inactivity
     var isDimmed by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
@@ -84,16 +181,16 @@ fun StreamerScreen(
         isDimmed = true
     }
 
-    // Điều chỉnh độ sáng thực tế của màn hình
+    // Adjust physical screen brightness
     DisposableEffect(isDimmed) {
-        val window = (context as? android.app.Activity)?.window
+        val window = (context as? Activity)?.window
         window?.attributes = window?.attributes?.also {
             it.screenBrightness = if (isDimmed) 0.01f else android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
         }
         onDispose {}
     }
 
-    // Hiện snackbar khi có lỗi
+    // Show error snackbar
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
             snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Long)
@@ -148,13 +245,36 @@ fun StreamerScreen(
                     AndroidView(
                         factory = { ctx ->
                             OpenGlView(ctx).also { glView ->
-                                glView.post { viewModel.attachCamera(glView) }
+                                glView.setAspectRatioMode(AspectRatioMode.Adjust)
+                                glView.post {
+                                    val checker = object : ConnectChecker {
+                                        override fun onConnectionStarted(url: String) = AppLog.d("Client connecting: $url")
+                                        override fun onConnectionSuccess() = AppLog.i("Client connected")
+                                        override fun onConnectionFailed(reason: String) {
+                                            AppLog.e("Connection failed: $reason")
+                                            viewModel.onStreamStartFailed(reason)
+                                        }
+                                        override fun onNewBitrate(bitrate: Long) = AppLog.v("Bitrate: ${bitrate / 1000} kbps")
+                                        override fun onDisconnect() = AppLog.i("Client disconnected")
+                                        override fun onAuthError() = AppLog.e("Auth error")
+                                        override fun onAuthSuccess() {}
+                                    }
+                                    val cam = RtspServerCamera2(glView, checker, RTSP_PORT).apply {
+                                        startPreview(
+                                            if (uiState.useFrontCamera) CameraHelper.Facing.FRONT else CameraHelper.Facing.BACK,
+                                            uiState.selectedResolution.width,
+                                            uiState.selectedResolution.height
+                                        )
+                                    }
+                                    rtspCamera = cam
+                                    viewModel.onCameraPreviewReady(true)
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Hàng điều khiển và Trạng thái trên cùng sát lề
+                    // Top Control row overlay
                     var showPin by remember { mutableStateOf(false) }
                     Row(
                         modifier = Modifier
@@ -178,12 +298,12 @@ fun StreamerScreen(
                                 Icon(Icons.Filled.ArrowBack, "Quay lại", tint = Color.White)
                             }
 
-                            androidx.compose.animation.AnimatedVisibility(
+                            AnimatedVisibility(
                                 visible = uiState.isStreaming,
                                 enter = fadeIn(), exit = fadeOut()
                             ) { LiveBadge() }
 
-                            androidx.compose.animation.AnimatedVisibility(
+                            AnimatedVisibility(
                                 visible = uiState.isStreaming && uiState.pinCode.isNotEmpty(),
                                 enter = fadeIn(), exit = fadeOut()
                             ) {
@@ -242,7 +362,7 @@ fun StreamerScreen(
                         }
                     }
 
-                    // Hiện độ phân giải đang chọn khi chưa phát
+                    // Resolution overlay when idle
                     androidx.compose.animation.AnimatedVisibility(
                         visible = !uiState.isStreaming,
                         modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
@@ -268,7 +388,7 @@ fun StreamerScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // Chọn độ phân giải & FPS
+                    // Resolution & FPS Picker
                     Column {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -359,10 +479,10 @@ fun StreamerScreen(
                         onCopy = { clipboard.setText(AnnotatedString(uiState.rtspUrl)) }
                     )
 
-                    // Danh sách máy đang xem
+                    // Connected Viewers
                     ViewersCard(viewers = uiState.connectedViewers)
 
-                    // Nút Bắt đầu / Dừng phát
+                    // Start/Stop button
                     Button(
                         onClick = {
                             if (uiState.isStreaming) viewModel.stopStream()
@@ -392,8 +512,8 @@ fun StreamerScreen(
             }
         }
 
-        // Overlay đen tiết kiệm pin
-        androidx.compose.animation.AnimatedVisibility(
+        // Screen Saver battery overlay
+        AnimatedVisibility(
             visible = isDimmed,
             enter = fadeIn(animationSpec = tween(800)),
             exit = fadeOut(animationSpec = tween(300)),
@@ -453,7 +573,6 @@ private fun ViewersCard(viewers: List<String>) {
 
 @Composable
 private fun LiveBadge() {
-
     val infiniteTransition = rememberInfiniteTransition(label = "live_blink")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 1f, targetValue = 0.3f,

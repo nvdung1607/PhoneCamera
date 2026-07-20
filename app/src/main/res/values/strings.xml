@@ -1,3 +1,72 @@
 <resources>
-    <string name="app_name">Phone Cam</string>
+    <string name="app_name">Phone Camera</string>
+    
+    <!-- Home Screen -->
+    <string name="home_subtitle">Hệ thống camera an ninh nội bộ</string>
+    <string name="home_role_camera_title">Máy Quay (Camera)</string>
+    <string name="home_role_camera_desc">Biến điện thoại này thành camera an ninh phát luồng RTSP qua mạng nội bộ</string>
+    <string name="home_role_monitor_title">Màn Hình Xem (Monitor)</string>
+    <string name="home_role_monitor_desc">Xem đồng thời tối đa 4 camera từ các điện thoại khác trong mạng</string>
+    <string name="home_permission_title">Cần quyền Camera &amp; Microphone</string>
+    <string name="home_permission_desc">Cấp quyền để sử dụng chức năng phát Camera</string>
+    <string name="home_btn_settings">Cài đặt</string>
+    <string name="home_btn_grant">Cấp quyền</string>
+    <string name="home_warning_permission">⚠ Chưa cấp quyền Camera/Mic</string>
+
+    <!-- Streamer Screen -->
+    <string name="streamer_btn_close">Đóng</string>
+    <string name="streamer_label_dim_screen">Chạm để sáng màn hình</string>
+    <string name="streamer_quality_title">Chất lượng video</string>
+    <string name="streamer_fps_title">Tốc độ khung hình (FPS)</string>
+    <string name="streamer_url_title">URL để kết nối</string>
+    <string name="streamer_viewer_none">Chưa có ai xem</string>
+    <string name="streamer_viewer_count">Đang xem: %1$d thiết bị</string>
+    <string name="streamer_btn_stop">DỪNG PHÁT</string>
+    <string name="streamer_btn_start">BẮT ĐẦU PHÁT</string>
+    <string name="streamer_toast_camera_error">Camera chưa sẵn sàng. Vui lòng thử lại.</string>
+    <string name="streamer_toast_encoder_error">Không thể chuẩn bị encoder video.</string>
+    <string name="streamer_toast_mic_error">Không thể khởi tạo microphone. Kiểm tra quyền RECORD_AUDIO.</string>
+    <string name="streamer_toast_start_failed">Không thể bắt đầu phát. Kiểm tra quyền Camera.</string>
+    <string name="streamer_toast_hw_error">Thiết bị không hỗ trợ đủ cả camera trước và sau.</string>
+    
+    <!-- Viewer Screen -->
+    <string name="viewer_title">Xem Camera</string>
+    <string name="viewer_btn_back">Quay lại</string>
+    <string name="viewer_btn_tcp_udp">TCP/UDP</string>
+    <string name="viewer_btn_scan">Tìm camera tự động</string>
+    <string name="viewer_btn_grid">Chế độ lưới ngang</string>
+    <string name="viewer_btn_exit_fs">Thoát toàn màn hình</string>
+    <string name="viewer_connecting">Đang kết nối...</string>
+    <string name="viewer_btn_add">Thêm Camera</string>
+    <string name="viewer_btn_retry">Thử lại</string>
+    <string name="viewer_btn_edit">Sửa</string>
+    <string name="viewer_conn_failed">Không thể kết nối đến camera. Vui lòng kiểm tra IP/Port.</string>
+    <string name="viewer_pin_incorrect">Mã PIN không chính xác. Kết nối bị từ chối.</string>
+    
+    <!-- Add/Edit Camera Dialog -->
+    <string name="dialog_title_edit">Sửa Camera %1$d</string>
+    <string name="dialog_title_add">Thêm Camera %1$d</string>
+    <string name="dialog_label_name">Tên camera</string>
+    <string name="dialog_error_name_empty">Tên không được để trống</string>
+    <string name="dialog_section_conn">KẾT NỐI</string>
+    <string name="dialog_label_ip">Địa chỉ IP hoặc Hostname</string>
+    <string name="dialog_error_ip_invalid">Định dạng IP/hostname không hợp lệ</string>
+    <string name="dialog_label_port">Cổng (Port)</string>
+    <string name="dialog_error_port_invalid">Cổng hợp lệ từ 1 đến 65535</string>
+    <string name="dialog_label_pin">Mã PIN bảo mật (4 chữ số)</string>
+    <string name="dialog_error_pin_invalid">Mã PIN phải gồm đúng 4 chữ số</string>
+    <string name="dialog_btn_delete">Xóa</string>
+    <string name="dialog_btn_cancel">Hủy</string>
+    <string name="dialog_btn_save">Lưu</string>
+    
+    <!-- Discovery Bottom Sheet -->
+    <string name="discovery_title">Camera trên mạng LAN</string>
+    <string name="discovery_scanning">Đang tìm kiếm thiết bị...</string>
+    <string name="discovery_found_count">Tìm thấy %1$d thiết bị</string>
+    <string name="discovery_added">Đã thêm</string>
+    <string name="discovery_btn_add">Thêm</string>
+    <string name="discovery_empty_title_scanning">Đang tìm kiếm camera...</string>
+    <string name="discovery_empty_title_none">Không tìm thấy thiết bị nào</string>
+    <string name="discovery_empty_desc_scanning">Đảm bảo các điện thoại camera khác đang mở\nvà kết nối cùng mạng WiFi.</string>
+    <string name="discovery_empty_desc_none">Hãy bật chế độ \'Bắt đầu phát\' trên các thiết bị khác\nvà thử lại.</string>
 </resources>

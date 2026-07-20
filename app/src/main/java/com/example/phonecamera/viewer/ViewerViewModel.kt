@@ -1,8 +1,8 @@
 package com.example.phonecamera.viewer
 
-import android.app.Application
+import android.content.Context
 import com.example.phonecamera.utils.AppLog
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.phonecamera.data.CameraConfig
 import com.example.phonecamera.data.CameraRepository
@@ -15,6 +15,7 @@ import com.example.phonecamera.network.CameraControlClient
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
@@ -50,11 +51,13 @@ data class ViewerUiState(
         get() = cameras.indexOfFirst { it == null }.takeIf { it >= 0 }
 }
 
-class ViewerViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val repository = CameraRepository(application)
-    private val nsdHelper = NsdHelper(application)
-    private val controlClient = CameraControlClient()
+class ViewerViewModel(
+    private val context: Context,
+    private val repository: CameraRepository,
+    private val nsdHelper: NsdHelper,
+    private val controlClient: CameraControlClient,
+    private val applicationScope: CoroutineScope
+) : ViewModel() {
 
     private val activePlayers = mutableMapOf<Int, ExoPlayer>()
     private val prepareJobs = mutableMapOf<Int, kotlinx.coroutines.Job>()
@@ -108,7 +111,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
             AppLog.d("Waiting 500ms before connecting slot $index (${config.toRtspUrl()})")
             delay(500L)
             
-            val context = getApplication<Application>()
+            val context = this@ViewerViewModel.context
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(2500, 10000, 1000, 1500)
                 .setPrioritizeTimeOverSizeThresholds(true)
@@ -483,7 +486,6 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
     override fun onCleared() {
         AppLog.d("ViewerViewModel onCleared")
         prepareJobs.values.forEach { it.cancel() }
@@ -495,7 +497,7 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
         val deviceName = NsdHelper.deviceServiceName()
         _uiState.value.cameras.forEachIndexed { index, cam ->
             if (cam?.isPhoneCamera == true && _uiState.value.playerStates[index] is PlayerState.Playing) {
-                kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                applicationScope.launch(Dispatchers.IO) {
                     try { controlClient.sayBye(cam.host, deviceName, cam.pinCode) } catch (_: Exception) {}
                 }
             }

@@ -1,25 +1,25 @@
 package com.example.phonecamera.streamer
 
-import android.app.Application
-import java.net.NetworkInterface
-import java.util.Collections
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.phonecamera.data.CameraRepository
 import com.example.phonecamera.network.ControlServer
 import com.example.phonecamera.network.NsdHelper
 import com.example.phonecamera.utils.AppLog
-import com.pedro.common.ConnectChecker
-import com.pedro.encoder.input.video.CameraHelper
-import com.pedro.encoder.utils.gl.AspectRatioMode
-import com.pedro.library.view.OpenGlView
-import com.pedro.rtspserver.RtspServerCamera2
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.net.NetworkInterface
+import java.util.Collections
 
 const val RTSP_PORT = 8080
 
@@ -29,6 +29,19 @@ enum class Resolution(val label: String, val width: Int, val height: Int, val bi
     P1080("1080p", 1920, 1080, 2_000_000)
 }
 
+sealed interface StreamerCommand {
+    data class StartStream(
+        val width: Int,
+        val height: Int,
+        val fps: Int,
+        val bitrate: Int,
+        val useFrontCamera: Boolean,
+        val pinCode: String
+    ) : StreamerCommand
+    data object StopStream : StreamerCommand
+    data object SwitchCamera : StreamerCommand
+}
+
 data class StreamerUiState(
     val isStreaming: Boolean = false,
     val useFrontCamera: Boolean = false,
@@ -36,7 +49,7 @@ data class StreamerUiState(
     val localIpAddress: String = "",
     val errorMessage: String? = null,
     val isCameraReady: Boolean = false,
-    /** Danh sách tên thiết bị đang xem (gửi qua ControlServer) */
+    /** List of viewer device names sent via ControlServer */
     val connectedViewers: List<String> = emptyList(),
     val fps: Int = 30,
     val pinCode: String = "",
@@ -46,30 +59,25 @@ data class StreamerUiState(
     val rtspUrl: String get() = "rtsp://$localIpAddress:$RTSP_PORT"
 }
 
-class StreamerViewModel(application: Application) : AndroidViewModel(application) {
+class StreamerViewModel(
+    private val repository: CameraRepository,
+    private val nsdHelper: NsdHelper,
+    private val applicationScope: CoroutineScope
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StreamerUiState())
     val uiState: StateFlow<StreamerUiState> = _uiState.asStateFlow()
 
-    private var rtspCamera: RtspServerCamera2? = null
-    private val nsdHelper = NsdHelper(application)
+    private val _commands = MutableSharedFlow<StreamerCommand>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val commands: SharedFlow<StreamerCommand> = _commands.asSharedFlow()
+
     private val controlServer = ControlServer()
-
-    private val connectChecker = object : ConnectChecker {
-        override fun onConnectionStarted(url: String) = AppLog.d("Client connecting: $url")
-        override fun onConnectionSuccess() = AppLog.i("Client connected")
-        override fun onConnectionFailed(reason: String) = AppLog.e("Connection failed: $reason")
-        override fun onNewBitrate(bitrate: Long) = AppLog.v("Bitrate: ${bitrate / 1000} kbps")
-        override fun onDisconnect() = AppLog.i("Client disconnected")
-        override fun onAuthError() = AppLog.e("Auth error")
-        override fun onAuthSuccess() {}
-    }
-
-    private val repository = com.example.phonecamera.data.CameraRepository(application)
 
     init {
         loadLocalIp()
-        checkCameraHardware()
         startControlServer()
         viewModelScope.launch {
             try {
@@ -84,26 +92,14 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun checkCameraHardware() {
-        AppLog.d("checkCameraHardware()")
-        try {
-            val cameraManager = getApplication<Application>().getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
-            val ids = cameraManager.cameraIdList
-            var hasFront = false
-            var hasBack = false
-            for (id in ids) {
-                val chars = cameraManager.getCameraCharacteristics(id)
-                val facing = chars.get(android.hardware.camera2.CameraCharacteristics.LENS_FACING)
-                if (facing == android.hardware.camera2.CameraCharacteristics.LENS_FACING_FRONT) {
-                    hasFront = true
-                } else if (facing == android.hardware.camera2.CameraCharacteristics.LENS_FACING_BACK) {
-                    hasBack = true
-                }
-            }
-            _uiState.update { it.copy(hasFrontCamera = hasFront, hasBackCamera = hasBack, useFrontCamera = hasFront && !hasBack) }
-            AppLog.i("Hardware checked: hasFrontCamera=$hasFront, hasBackCamera=$hasBack")
-        } catch (e: Exception) {
-            AppLog.e("Failed to check camera hardware", e)
+    fun onCameraHardwareChecked(hasFront: Boolean, hasBack: Boolean) {
+        AppLog.d("onCameraHardwareChecked(hasFront=$hasFront, hasBack=$hasBack)")
+        _uiState.update {
+            it.copy(
+                hasFrontCamera = hasFront,
+                hasBackCamera = hasBack,
+                useFrontCamera = hasFront && !hasBack
+            )
         }
     }
 
@@ -169,32 +165,12 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Gọi khi OpenGlView đã sẵn sàng. Khởi tạo camera và bắt đầu preview. */
-    fun attachCamera(glView: OpenGlView) {
-        AppLog.d("attachCamera()")
-        val facing = cameraFacing()
-        glView.setAspectRatioMode(AspectRatioMode.Adjust)
-        val res = _uiState.value.selectedResolution
-        rtspCamera = RtspServerCamera2(glView, connectChecker, RTSP_PORT).also {
-            it.startPreview(facing, res.width, res.height)
-        }
-        _uiState.update { it.copy(isCameraReady = true) }
-        AppLog.d("Camera attached (facing=$facing, resolution=${res.width}x${res.height})")
-    }
-
     fun startStream() {
         AppLog.d("startStream()")
-        val cam = rtspCamera ?: return _uiState.update {
-            it.copy(errorMessage = "Camera chưa sẵn sàng. Vui lòng thử lại.")
-        }
         val res = _uiState.value.selectedResolution
         val currentFps = _uiState.value.fps
 
-        if (cam.isOnPreview) {
-            cam.stopPreview()
-        }
-
-        // Sinh mã PIN ngẫu nhiên 4 chữ số nếu chưa có (chỉ yêu cầu kết nối lần đầu)
+        // Generate persistent 4-digit PIN if not present
         val generatedPin = if (_uiState.value.pinCode.isEmpty()) {
             (1000..9999).random().toString()
         } else {
@@ -208,46 +184,55 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
                 AppLog.e("Error saving Streamer PIN", e)
             }
         }
-        cam.getStreamClient().setAuthorization("admin", generatedPin)
-        AppLog.i("RTSP Stream PIN (reused/generated/persisted): $generatedPin")
 
-        val rotation = CameraHelper.getCameraOrientation(getApplication())
-        if (!cam.prepareVideo(res.width, res.height, currentFps, res.bitrateBps, rotation)) {
-            _uiState.update { it.copy(errorMessage = "Không thể chuẩn bị encoder video (${res.label}).") }
-            return
-        }
-        if (!cam.prepareAudio()) {
-            _uiState.update { it.copy(errorMessage = "Không thể khởi tạo microphone. Kiểm tra quyền RECORD_AUDIO.") }
-            return
-        }
-        cam.startPreview(cameraFacing(), res.width, res.height)
-        cam.startStream()
-
-        if (cam.isStreaming) {
-            nsdHelper.registerService(RTSP_PORT)
-            _uiState.update { it.copy(isStreaming = true, errorMessage = null) }
-            AppLog.i("Stream started on port $RTSP_PORT at ${res.label} at $currentFps fps")
-        } else {
-            _uiState.update { it.copy(errorMessage = "Không thể bắt đầu phát. Kiểm tra quyền Camera.") }
-        }
+        // Notify View to start streaming via Command Flow
+        _commands.tryEmit(
+            StreamerCommand.StartStream(
+                width = res.width,
+                height = res.height,
+                fps = currentFps,
+                bitrate = res.bitrateBps,
+                useFrontCamera = _uiState.value.useFrontCamera,
+                pinCode = generatedPin
+            )
+        )
     }
 
     fun stopStream() {
         AppLog.d("stopStream()")
-        nsdHelper.unregisterService()
-        rtspCamera?.let { if (it.isStreaming) it.stopStream() }
-        _uiState.update { it.copy(isStreaming = false, connectedViewers = emptyList()) }
-        AppLog.i("Stream stopped (PIN is preserved)")
+        _commands.tryEmit(StreamerCommand.StopStream)
+        onStreamStopped()
     }
 
-    /** Đổi chất lượng từ xa (lệnh từ Viewer). Tự động restart stream trên Main thread. */
+    fun onStreamStartedSuccess() {
+        AppLog.d("onStreamStartedSuccess()")
+        nsdHelper.registerService(RTSP_PORT)
+        _uiState.update { it.copy(isStreaming = true, errorMessage = null) }
+    }
+
+    fun onStreamStartFailed(reason: String) {
+        AppLog.e("onStreamStartFailed: $reason")
+        _uiState.update { it.copy(isStreaming = false, errorMessage = reason) }
+    }
+
+    fun onStreamStopped() {
+        AppLog.d("onStreamStopped()")
+        nsdHelper.unregisterService()
+        _uiState.update { it.copy(isStreaming = false, connectedViewers = emptyList()) }
+    }
+
+    fun onCameraPreviewReady(ready: Boolean) {
+        AppLog.d("onCameraPreviewReady($ready)")
+        _uiState.update { it.copy(isCameraReady = ready) }
+    }
+
     private fun changeQualityRemote(resolution: Resolution) {
         AppLog.d("changeQualityRemote(resolution=${resolution.label})")
         viewModelScope.launch(Dispatchers.Main) {
             val wasStreaming = _uiState.value.isStreaming
             _uiState.update { it.copy(selectedResolution = resolution) }
             if (wasStreaming) {
-                rtspCamera?.let { if (it.isStreaming) it.stopStream() }
+                stopStream()
                 delay(500L)
                 startStream()
             }
@@ -261,7 +246,7 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
             val wasStreaming = _uiState.value.isStreaming
             _uiState.update { it.copy(fps = fps) }
             if (wasStreaming) {
-                rtspCamera?.let { if (it.isStreaming) it.stopStream() }
+                stopStream()
                 delay(500L)
                 startStream()
             }
@@ -282,8 +267,8 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
             _uiState.update { it.copy(errorMessage = "Thiết bị không hỗ trợ đủ cả camera trước và sau.") }
             return
         }
-        rtspCamera?.switchCamera()
         _uiState.update { it.copy(useFrontCamera = !it.useFrontCamera) }
+        _commands.tryEmit(StreamerCommand.SwitchCamera)
     }
 
     fun selectResolution(resolution: Resolution) {
@@ -293,19 +278,22 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun dismissError() = _uiState.update { it.copy(errorMessage = null) }
+    fun dismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
 
-    /** Dừng stream và giải phóng tài nguyên. Gọi khi rời khỏi màn hình. */
     fun releaseCamera() {
         AppLog.d("releaseCamera()")
+        _commands.tryEmit(StreamerCommand.StopStream)
         nsdHelper.stopAll()
-        rtspCamera?.apply {
-            if (isStreaming) stopStream()
-            if (isOnPreview) stopPreview()
+        _uiState.update {
+            it.copy(
+                isStreaming = false,
+                isCameraReady = false,
+                connectedViewers = emptyList(),
+                pinCode = ""
+            )
         }
-        rtspCamera = null
-        _uiState.update { it.copy(isStreaming = false, isCameraReady = false, connectedViewers = emptyList(), pinCode = "") }
-        AppLog.d("Camera released")
     }
 
     override fun onCleared() {
@@ -313,7 +301,4 @@ class StreamerViewModel(application: Application) : AndroidViewModel(application
         releaseCamera()
         super.onCleared()
     }
-
-    private fun cameraFacing() =
-        if (_uiState.value.useFrontCamera) CameraHelper.Facing.FRONT else CameraHelper.Facing.BACK
 }
