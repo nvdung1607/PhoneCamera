@@ -117,6 +117,11 @@ class ControlServer(val port: Int = CONTROL_PORT) {
                 val pin = parts.getOrNull(2) ?: ""
                 if (fps != null) Command.SetFps(fps = fps, pin = pin, fromIp = fromIp) else null
             }
+            "SET_BITRATE" -> {
+                val bitrate = parts.getOrNull(1)?.toIntOrNull()
+                val pin = parts.getOrNull(2) ?: ""
+                if (bitrate != null) Command.SetBitrate(bitrate = bitrate, pin = pin, fromIp = fromIp) else null
+            }
             else -> null
         }
     }
@@ -127,5 +132,6 @@ class ControlServer(val port: Int = CONTROL_PORT) {
         data class Bye(val deviceName: String, override val pin: String, val ip: String) : Command()
         data class SetQuality(val heightP: Int, override val pin: String, val fromIp: String) : Command()
         data class SetFps(val fps: Int, override val pin: String, val fromIp: String) : Command()
+        data class SetBitrate(val bitrate: Int, override val pin: String, val fromIp: String) : Command()
     }
 }

@@ -60,7 +60,7 @@ fun CameraCell(
     onRetryClick: () -> Unit,
     onPlayerReady: () -> Unit,
     onPlayerError: (String) -> Unit,
-    onSetRemoteQuality: ((Int) -> Unit)? = null,
+    onSetRemoteBitrate: ((Int) -> Unit)? = null,
     onSetRemoteFps: ((Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -96,7 +96,7 @@ fun CameraCell(
                     onFullscreenClick = onFullscreenClick,
                     isFullscreen = isFullscreen,
                     onEdit = onEditClick,
-                    onSetRemoteQuality = onSetRemoteQuality,
+                    onSetRemoteBitrate = onSetRemoteBitrate,
                     onSetRemoteFps = onSetRemoteFps
                 )
             else -> EmptyCell(onAddClick)
@@ -116,7 +116,7 @@ private fun ActivePlayerCell(
     onFullscreenClick: () -> Unit,
     isFullscreen: Boolean,
     onEdit: () -> Unit,
-    onSetRemoteQuality: ((Int) -> Unit)?,
+    onSetRemoteBitrate: ((Int) -> Unit)?,
     onSetRemoteFps: ((Int) -> Unit)?
 ) {
     val frameCounter = remember { AtomicLong(0) }
@@ -217,10 +217,10 @@ private fun ActivePlayerCell(
             }
 
             // Nút đổi chất lượng từ xa (chỉ Phone Camera) tích hợp vào nhãn độ phân giải
-            if (onSetRemoteQuality != null && !showLoadingOverlay) {
+            if (onSetRemoteBitrate != null && !showLoadingOverlay) {
                 Box {
                     Text(
-                        text = videoInfo.ifEmpty { "HD" },
+                        text = videoInfo.ifEmpty { "HD" } + " ⚙️",
                         fontSize = 9.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
@@ -233,10 +233,14 @@ private fun ActivePlayerCell(
                         expanded = showQualityMenu,
                         onDismissRequest = { showQualityMenu = false }
                     ) {
-                        listOf(360 to "360p (640x360)", 720 to "720p (1280x720)", 1080 to "1080p (1920x1080)").forEach { (h, label) ->
+                        listOf(
+                            500_000 to "Thấp (500 Kbps)",
+                            1_200_000 to "Vừa (1.2 Mbps)",
+                            2_000_000 to "Cao (2.0 Mbps)"
+                        ).forEach { (bps, label) ->
                             DropdownMenuItem(
                                 text = { Text(label, style = MaterialTheme.typography.bodyMedium) },
-                                onClick = { onSetRemoteQuality(h); showQualityMenu = false }
+                                onClick = { onSetRemoteBitrate(bps); showQualityMenu = false }
                             )
                         }
                     }

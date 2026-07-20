@@ -40,12 +40,13 @@ sealed interface StreamerCommand {
     ) : StreamerCommand
     data object StopStream : StreamerCommand
     data object SwitchCamera : StreamerCommand
+    data class SetBitrate(val bitrateBps: Int) : StreamerCommand
 }
 
 data class StreamerUiState(
     val isStreaming: Boolean = false,
     val useFrontCamera: Boolean = false,
-    val selectedResolution: Resolution = Resolution.P360,
+    val selectedResolution: Resolution = Resolution.P720,
     val localIpAddress: String = "",
     val errorMessage: String? = null,
     val isCameraReady: Boolean = false,
@@ -160,6 +161,10 @@ class StreamerViewModel(
                     AppLog.i("Remote FPS change → ${cmd.fps} (from ${cmd.fromIp})")
                     changeFpsRemote(cmd.fps)
                 }
+                is ControlServer.Command.SetBitrate -> {
+                    AppLog.i("Remote Bitrate change → ${cmd.bitrate} bps (from ${cmd.fromIp})")
+                    changeBitrateRemote(cmd.bitrate)
+                }
             }
             null
         }
@@ -251,6 +256,11 @@ class StreamerViewModel(
                 startStream()
             }
         }
+    }
+
+    private fun changeBitrateRemote(bitrateBps: Int) {
+        AppLog.d("changeBitrateRemote(bitrateBps=$bitrateBps)")
+        _commands.tryEmit(StreamerCommand.SetBitrate(bitrateBps))
     }
 
     fun selectFps(fps: Int) {

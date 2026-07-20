@@ -220,7 +220,7 @@ fun ViewerScreen(
                 onRetryClick = { viewModel.retryCamera(i) },
                 onPlayerReady = { viewModel.onPlayerReady(i) },
                 onPlayerError = { err -> viewModel.onPlayerError(i, err) },
-                onSetRemoteQuality = if (uiState.cameras.getOrNull(i)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(i, h) } else null,
+                onSetRemoteBitrate = if (uiState.cameras.getOrNull(i)?.isPhoneCamera == true) { b -> viewModel.setRemoteBitrate(i, b) } else null,
                 onSetRemoteFps = if (uiState.cameras.getOrNull(i)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(i, fps) } else null,
                 modifier = modifier
             )
@@ -253,7 +253,7 @@ fun ViewerScreen(
                             onRetryClick = { viewModel.retryCamera(0) },
                             onPlayerReady = { viewModel.onPlayerReady(0) },
                             onPlayerError = { err -> viewModel.onPlayerError(0, err) },
-                            onSetRemoteQuality = if (uiState.cameras.getOrNull(0)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(0, h) } else null,
+                            onSetRemoteBitrate = if (uiState.cameras.getOrNull(0)?.isPhoneCamera == true) { b -> viewModel.setRemoteBitrate(0, b) } else null,
                             onSetRemoteFps = if (uiState.cameras.getOrNull(0)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(0, fps) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
@@ -272,7 +272,7 @@ fun ViewerScreen(
                             onRetryClick = { viewModel.retryCamera(1) },
                             onPlayerReady = { viewModel.onPlayerReady(1) },
                             onPlayerError = { err -> viewModel.onPlayerError(1, err) },
-                            onSetRemoteQuality = if (uiState.cameras.getOrNull(1)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(1, h) } else null,
+                            onSetRemoteBitrate = if (uiState.cameras.getOrNull(1)?.isPhoneCamera == true) { b -> viewModel.setRemoteBitrate(1, b) } else null,
                             onSetRemoteFps = if (uiState.cameras.getOrNull(1)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(1, fps) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
@@ -294,7 +294,7 @@ fun ViewerScreen(
                             onRetryClick = { viewModel.retryCamera(2) },
                             onPlayerReady = { viewModel.onPlayerReady(2) },
                             onPlayerError = { err -> viewModel.onPlayerError(2, err) },
-                            onSetRemoteQuality = if (uiState.cameras.getOrNull(2)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(2, h) } else null,
+                            onSetRemoteBitrate = if (uiState.cameras.getOrNull(2)?.isPhoneCamera == true) { b -> viewModel.setRemoteBitrate(2, b) } else null,
                             onSetRemoteFps = if (uiState.cameras.getOrNull(2)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(2, fps) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
@@ -313,7 +313,7 @@ fun ViewerScreen(
                             onRetryClick = { viewModel.retryCamera(3) },
                             onPlayerReady = { viewModel.onPlayerReady(3) },
                             onPlayerError = { err -> viewModel.onPlayerError(3, err) },
-                            onSetRemoteQuality = if (uiState.cameras.getOrNull(3)?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(3, h) } else null,
+                            onSetRemoteBitrate = if (uiState.cameras.getOrNull(3)?.isPhoneCamera == true) { b -> viewModel.setRemoteBitrate(3, b) } else null,
                             onSetRemoteFps = if (uiState.cameras.getOrNull(3)?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(3, fps) } else null,
                             modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)
                         )
@@ -359,7 +359,7 @@ fun ViewerScreen(
                             onRetryClick = { viewModel.retryCamera(index) },
                             onPlayerReady = { viewModel.onPlayerReady(index) },
                             onPlayerError = { err -> viewModel.onPlayerError(index, err) },
-                            onSetRemoteQuality = if (config?.isPhoneCamera == true) { h -> viewModel.setRemoteQuality(index, h) } else null,
+                            onSetRemoteBitrate = if (config?.isPhoneCamera == true) { b -> viewModel.setRemoteBitrate(index, b) } else null,
                             onSetRemoteFps = if (config?.isPhoneCamera == true) { fps -> viewModel.setRemoteFps(index, fps) } else null,
                             modifier = Modifier.fillMaxSize()
                         )

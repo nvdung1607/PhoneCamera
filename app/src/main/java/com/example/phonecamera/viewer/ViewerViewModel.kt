@@ -390,43 +390,24 @@ class ViewerViewModel(
         _uiState.update { it.copy(snackbarMessage = null) } }
 
     /**
-     * Gửi lệnh đổi chất lượng tới máy Streamer qua TCP ControlServer.
+     * Gửi lệnh đổi tốc độ truyền (Bitrate) tới máy Streamer qua TCP ControlServer.
      * Chỉ hoạt động với camera có [CameraConfig.isPhoneCamera] = true.
+     * Giải pháp Seamless 100%: Thay đổi bitrate mượt mà không ngắt kết nối.
      */
-    fun setRemoteQuality(slotIndex: Int, heightP: Int) {
-        AppLog.d("setRemoteQuality(slotIndex=$slotIndex, heightP=$heightP)")
+    fun setRemoteBitrate(slotIndex: Int, bitrateBps: Int) {
+        AppLog.d("setRemoteBitrate(slotIndex=$slotIndex, bitrateBps=$bitrateBps)")
         val cam = _uiState.value.cameras.getOrNull(slotIndex) ?: return
         if (!cam.isPhoneCamera) {
-            AppLog.w("setRemoteQuality: slot $slotIndex is not a Phone Camera")
+            AppLog.w("setRemoteBitrate: slot $slotIndex is not a Phone Camera")
             return
         }
-        AppLog.i("setRemoteQuality: slot=$slotIndex → ${heightP}p @ ${cam.host}")
-        
-        // Put player to Loading and release connection immediately so it doesn't show error state
-        releasePlayer(slotIndex)
-        _uiState.update { current ->
-            val states = current.playerStates.toMutableMap()
-            states[slotIndex] = PlayerState.Loading()
-            current.copy(playerStates = states)
-        }
+        AppLog.i("setRemoteBitrate: slot=$slotIndex → $bitrateBps bps @ ${cam.host}")
         
         viewModelScope.launch {
-            val response = controlClient.setQuality(cam.host, heightP, cam.pinCode)
-            AppLog.d("SET_QUALITY response: $response")
-            if (response == "OK") {
-                // Đợi streamer dừng và khởi động lại stream xong mới bắt đầu kết nối lại
-                delay(2000L)
-                val activeCam = _uiState.value.cameras.getOrNull(slotIndex)
-                if (activeCam != null) {
-                    preparePlayer(slotIndex, activeCam, _uiState.value.useTcp)
-                }
-            } else {
-                _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi chất lượng: $response") }
-                // Restore old player connection
-                val activeCam = _uiState.value.cameras.getOrNull(slotIndex)
-                if (activeCam != null) {
-                    preparePlayer(slotIndex, activeCam, _uiState.value.useTcp)
-                }
+            val response = controlClient.setBitrate(cam.host, bitrateBps, cam.pinCode)
+            AppLog.d("SET_BITRATE response: $response")
+            if (response != "OK") {
+                _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi tốc độ truyền: $response") }
             }
         }
     }

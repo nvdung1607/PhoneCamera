@@ -59,4 +59,14 @@ class ExampleUnitTest {
         assertEquals("4321", bye.pin)
         assertEquals(clientIp, bye.ip)
     }
+
+    @Test
+    fun parseCommand_setBitrate() {
+        val cmd = controlServer.parseCommand("SET_BITRATE 1200000 9999", clientIp)
+        assertTrue(cmd is ControlServer.Command.SetBitrate)
+        val bitrateCmd = cmd as ControlServer.Command.SetBitrate
+        assertEquals(1200000, bitrateCmd.bitrate)
+        assertEquals("9999", bitrateCmd.pin)
+        assertEquals(clientIp, bitrateCmd.fromIp)
+    }
 }

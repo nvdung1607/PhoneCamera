@@ -63,4 +63,9 @@ class CameraControlClient {
         AppLog.d("setFps(host=$host, fps=$fps, pinCode=$pinCode)")
         return sendCommand(host, "SET_FPS $fps $pinCode")
     }
+
+    suspend fun setBitrate(host: String, bitrateBps: Int, pinCode: String): String? {
+        AppLog.d("setBitrate(host=$host, bitrateBps=$bitrateBps, pinCode=$pinCode)")
+        return sendCommand(host, "SET_BITRATE $bitrateBps $pinCode")
+    }
 }

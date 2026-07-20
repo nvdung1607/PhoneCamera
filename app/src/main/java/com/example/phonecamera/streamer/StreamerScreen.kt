@@ -159,6 +159,14 @@ fun StreamerScreen(
                     is StreamerCommand.SwitchCamera -> {
                         rtspCamera?.switchCamera()
                     }
+                    is StreamerCommand.SetBitrate -> {
+                        rtspCamera?.let { cam ->
+                            if (cam.isStreaming) {
+                                cam.setVideoBitrateOnFly(cmd.bitrateBps)
+                                AppLog.i("Bitrate changed dynamically to ${cmd.bitrateBps} bps")
+                            }
+                        }
+                    }
                 }
             }
         }
