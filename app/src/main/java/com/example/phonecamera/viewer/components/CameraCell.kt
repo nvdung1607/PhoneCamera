@@ -38,6 +38,7 @@ import com.example.phonecamera.data.CameraConfig
 import com.example.phonecamera.ui.theme.*
 import com.example.phonecamera.utils.AppLog
 import com.example.phonecamera.viewer.PlayerState
+import com.example.phonecamera.viewer.QualityMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
@@ -60,8 +61,9 @@ fun CameraCell(
     onRetryClick: () -> Unit,
     onPlayerReady: () -> Unit,
     onPlayerError: (String) -> Unit,
-    onSetRemoteBitrate: ((Int) -> Unit)? = null,
-    onSetRemoteFps: ((Int) -> Unit)? = null,
+    qualityMode: QualityMode = QualityMode.AUTO,
+    realtimeFps: Int = 0,
+    onSetRemoteQualityMode: ((QualityMode) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -96,8 +98,9 @@ fun CameraCell(
                     onFullscreenClick = onFullscreenClick,
                     isFullscreen = isFullscreen,
                     onEdit = onEditClick,
-                    onSetRemoteBitrate = onSetRemoteBitrate,
-                    onSetRemoteFps = onSetRemoteFps
+                    qualityMode = qualityMode,
+                    realtimeFps = realtimeFps,
+                    onSetRemoteQualityMode = onSetRemoteQualityMode
                 )
             else -> EmptyCell(onAddClick)
         }
@@ -116,30 +119,19 @@ private fun ActivePlayerCell(
     onFullscreenClick: () -> Unit,
     isFullscreen: Boolean,
     onEdit: () -> Unit,
-    onSetRemoteBitrate: ((Int) -> Unit)?,
-    onSetRemoteFps: ((Int) -> Unit)?
+    qualityMode: QualityMode,
+    realtimeFps: Int,
+    onSetRemoteQualityMode: ((QualityMode) -> Unit)?
 ) {
-    val frameCounter = remember { AtomicLong(0) }
-    var displayFps by remember { mutableStateOf(0) }
     var videoInfo by remember { mutableStateOf("") }
     var showQualityMenu by remember { mutableStateOf(false) }
-    var showFpsMenu by remember { mutableStateOf(false) }
 
     DisposableEffect(exoPlayer) {
         val listener = VideoFrameMetadataListener { _, _, format, _ ->
-            frameCounter.incrementAndGet()
             if (videoInfo.isEmpty()) videoInfo = "${format.width}x${format.height}"
         }
         exoPlayer?.setVideoFrameMetadataListener(listener)
         onDispose { exoPlayer?.clearVideoFrameMetadataListener(listener) }
-    }
-
-    LaunchedEffect(exoPlayer) {
-        while (true) {
-            delay(1000L)
-            val count = frameCounter.getAndSet(0)
-            if (count > 0) displayFps = count.toInt()
-        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -173,42 +165,16 @@ private fun ActivePlayerCell(
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 fontWeight = FontWeight.SemiBold
             )
-            
-            // Remote FPS selection badge (only for Phone Cameras when playing)
-            if (onSetRemoteFps != null && !showLoadingOverlay) {
-                Box {
-                    Text(
-                        text = if (displayFps > 0) "${displayFps}fps ⚙️" else "FPS",
-                        fontSize = 9.sp,
-                        color = if (displayFps >= 24) GreenOnline else AmberWarning,
-                        modifier = Modifier
-                            .background(
-                                if (displayFps >= 24) GreenOnline.copy(alpha = 0.15f) else AmberWarning.copy(alpha = 0.15f),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .clickable { showFpsMenu = true }
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
-                    )
-                    DropdownMenu(
-                        expanded = showFpsMenu,
-                        onDismissRequest = { showFpsMenu = false }
-                    ) {
-                        listOf(15, 24, 30).forEach { fps ->
-                            DropdownMenuItem(
-                                text = { Text("${fps} FPS", style = MaterialTheme.typography.bodyMedium) },
-                                onClick = { onSetRemoteFps(fps); showFpsMenu = false }
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-            } else if (!showLoadingOverlay && displayFps > 0) {
+
+            // Hiển thị FPS thực tế đo được từ ExoPlayer (Chỉ xem, không cho chọn FPS)
+            if (!showLoadingOverlay) {
                 Text(
-                    text = "${displayFps}fps", fontSize = 9.sp,
-                    color = if (displayFps >= 24) GreenOnline else AmberWarning,
+                    text = "${realtimeFps} FPS",
+                    fontSize = 9.sp,
+                    color = if (realtimeFps >= 24) GreenOnline else AmberWarning,
                     modifier = Modifier
                         .background(
-                            if (displayFps >= 24) GreenOnline.copy(alpha = 0.15f) else AmberWarning.copy(alpha = 0.15f),
+                            if (realtimeFps >= 24) GreenOnline.copy(alpha = 0.15f) else AmberWarning.copy(alpha = 0.15f),
                             RoundedCornerShape(4.dp)
                         )
                         .padding(horizontal = 4.dp, vertical = 1.dp)
@@ -217,10 +183,11 @@ private fun ActivePlayerCell(
             }
 
             // Nút đổi chất lượng từ xa (chỉ Phone Camera) tích hợp vào nhãn độ phân giải
-            if (onSetRemoteBitrate != null && !showLoadingOverlay) {
+            if (onSetRemoteQualityMode != null && !showLoadingOverlay) {
                 Box {
+                    val modeLabel = if (qualityMode == QualityMode.AUTO) "Auto" else qualityMode.label.substringBefore(" ")
                     Text(
-                        text = videoInfo.ifEmpty { "HD" } + " ⚙️",
+                        text = "$modeLabel (${videoInfo.ifEmpty { "HD" }}) ⚙️",
                         fontSize = 9.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
@@ -233,14 +200,16 @@ private fun ActivePlayerCell(
                         expanded = showQualityMenu,
                         onDismissRequest = { showQualityMenu = false }
                     ) {
-                        listOf(
-                            500_000 to "Thấp (500 Kbps)",
-                            1_200_000 to "Vừa (1.2 Mbps)",
-                            2_000_000 to "Cao (2.0 Mbps)"
-                        ).forEach { (bps, label) ->
+                        QualityMode.entries.forEach { mode ->
                             DropdownMenuItem(
-                                text = { Text(label, style = MaterialTheme.typography.bodyMedium) },
-                                onClick = { onSetRemoteBitrate(bps); showQualityMenu = false }
+                                text = { 
+                                    Text(
+                                        text = mode.label, 
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (qualityMode == mode) FontWeight.Bold else FontWeight.Normal
+                                    ) 
+                                },
+                                onClick = { onSetRemoteQualityMode(mode); showQualityMenu = false }
                             )
                         }
                     }

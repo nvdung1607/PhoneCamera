@@ -32,6 +32,13 @@ sealed class PlayerState {
     data class Error(val message: String) : PlayerState()
 }
 
+enum class QualityMode(val label: String, val bitrateBps: Int) {
+    AUTO("Tự động", -1),
+    LOW("Thấp (500 Kbps)", 500_000),
+    MEDIUM("Vừa (1.2 Mbps)", 1_200_000),
+    HIGH("Cao (2.0 Mbps)", 2_000_000)
+}
+
 data class ViewerUiState(
     val cameras: List<CameraConfig?> = List(4) { null },
     val playerStates: Map<Int, PlayerState> = emptyMap(),
@@ -40,9 +47,13 @@ data class ViewerUiState(
     val useTcp: Boolean = false, // Default to UDP as requested by user
     val selectedAudioSlot: Int? = null, // Which slot's audio is currently unmuted
     val discoveredCameras: List<DiscoveredCamera> = emptyList(),
-    val discoveryBadgeCount: Int = 0
+    val discoveryBadgeCount: Int = 0,
+    val realtimeFps: Map<Int, Int> = emptyMap(),
+    val qualityModes: Map<Int, QualityMode> = emptyMap()
 ) {
     fun playerStateFor(index: Int): PlayerState = playerStates[index] ?: PlayerState.Idle
+    fun qualityModeFor(index: Int): QualityMode = qualityModes[index] ?: QualityMode.AUTO
+    fun fpsFor(index: Int): Int = realtimeFps[index] ?: 0
 
     val occupiedHosts: Set<String>
         get() = cameras.filterNotNull().map { it.host }.toSet()
@@ -66,6 +77,8 @@ class ViewerViewModel(
 
     private val _uiState = MutableStateFlow(ViewerUiState())
     val uiState: StateFlow<ViewerUiState> = _uiState.asStateFlow()
+
+    private val activeBitrates = mutableMapOf<Int, Int>()
 
     init {
         AppLog.d("ViewerViewModel init")
@@ -95,6 +108,7 @@ class ViewerViewModel(
             }
         }
         startDiscovery()
+        startMonitoringLoop()
     }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -389,60 +403,150 @@ class ViewerViewModel(
         AppLog.d("dismissSnackbar()")
         _uiState.update { it.copy(snackbarMessage = null) } }
 
-    /**
-     * Gửi lệnh đổi tốc độ truyền (Bitrate) tới máy Streamer qua TCP ControlServer.
-     * Chỉ hoạt động với camera có [CameraConfig.isPhoneCamera] = true.
-     * Giải pháp Seamless 100%: Thay đổi bitrate mượt mà không ngắt kết nối.
-     */
-    fun setRemoteBitrate(slotIndex: Int, bitrateBps: Int) {
-        AppLog.d("setRemoteBitrate(slotIndex=$slotIndex, bitrateBps=$bitrateBps)")
+    private fun getCurrentBitrateFor(slotIndex: Int): Int {
+        return activeBitrates[slotIndex] ?: 1_200_000
+    }
+
+    private fun setCurrentBitrateFor(slotIndex: Int, bitrate: Int) {
+        activeBitrates[slotIndex] = bitrate
+    }
+
+    private fun getLowerBitrate(current: Int): Int {
+        return when {
+            current > 1_200_000 -> 1_200_000
+            else -> 500_000
+        }
+    }
+
+    private fun getHigherBitrate(current: Int): Int {
+        return when {
+            current < 1_200_000 -> 1_200_000
+            else -> 2_000_000
+        }
+    }
+
+    fun setRemoteQualityMode(slotIndex: Int, mode: QualityMode) {
+        AppLog.d("setRemoteQualityMode(slotIndex=$slotIndex, mode=$mode)")
         val cam = _uiState.value.cameras.getOrNull(slotIndex) ?: return
         if (!cam.isPhoneCamera) {
-            AppLog.w("setRemoteBitrate: slot $slotIndex is not a Phone Camera")
+            AppLog.w("setRemoteQualityMode: slot $slotIndex is not a Phone Camera")
             return
         }
-        AppLog.i("setRemoteBitrate: slot=$slotIndex → $bitrateBps bps @ ${cam.host}")
         
-        viewModelScope.launch {
-            val response = controlClient.setBitrate(cam.host, bitrateBps, cam.pinCode)
-            AppLog.d("SET_BITRATE response: $response")
-            if (response != "OK") {
-                _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi tốc độ truyền: $response") }
+        _uiState.update { current ->
+            val modes = current.qualityModes.toMutableMap()
+            modes[slotIndex] = mode
+            current.copy(qualityModes = modes)
+        }
+        
+        if (mode != QualityMode.AUTO) {
+            val bitrateBps = mode.bitrateBps
+            AppLog.i("setRemoteQualityMode: slot=$slotIndex → manual bitrate $bitrateBps bps @ ${cam.host}")
+            viewModelScope.launch {
+                val response = controlClient.setBitrate(cam.host, bitrateBps, cam.pinCode)
+                AppLog.d("SET_BITRATE response: $response")
+                if (response == "OK") {
+                    activeBitrates[slotIndex] = bitrateBps
+                } else {
+                    _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi tốc độ truyền: $response") }
+                }
+            }
+        } else {
+            AppLog.i("setRemoteQualityMode: slot=$slotIndex → Auto ABR enabled @ ${cam.host}")
+            val defaultAutoBitrate = QualityMode.MEDIUM.bitrateBps
+            viewModelScope.launch {
+                val response = controlClient.setBitrate(cam.host, defaultAutoBitrate, cam.pinCode)
+                if (response == "OK") {
+                    activeBitrates[slotIndex] = defaultAutoBitrate
+                }
             }
         }
     }
 
-    fun setRemoteFps(slotIndex: Int, fps: Int) {
-        AppLog.d("setRemoteFps(slotIndex=$slotIndex, fps=$fps)")
-        val cam = _uiState.value.cameras.getOrNull(slotIndex) ?: return
-        if (!cam.isPhoneCamera) {
-            AppLog.w("setRemoteFps: slot $slotIndex is not a Phone Camera")
-            return
-        }
-        AppLog.i("setRemoteFps: slot=$slotIndex → ${fps}fps @ ${cam.host}")
-        
-        // Put player to Loading and release connection immediately so it doesn't show error state
-        releasePlayer(slotIndex)
-        _uiState.update { current ->
-            val states = current.playerStates.toMutableMap()
-            states[slotIndex] = PlayerState.Loading()
-            current.copy(playerStates = states)
-        }
-        
-        viewModelScope.launch {
-            val response = controlClient.setFps(cam.host, fps, cam.pinCode)
-            AppLog.d("SET_FPS response: $response")
-            if (response == "OK") {
-                delay(2000L)
-                val activeCam = _uiState.value.cameras.getOrNull(slotIndex)
-                if (activeCam != null) {
-                    preparePlayer(slotIndex, activeCam, _uiState.value.useTcp)
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun startMonitoringLoop() {
+        viewModelScope.launch(Dispatchers.Main) {
+            val lastRenderedFrameCounts = mutableMapOf<Int, Long>()
+            val abrCooldowns = mutableMapOf<Int, Long>()
+            val lowBufferAccumulator = mutableMapOf<Int, Int>()
+            val highBufferAccumulator = mutableMapOf<Int, Int>()
+            
+            while (true) {
+                delay(1000L)
+                val currentUiState = _uiState.value
+                val currentTime = System.currentTimeMillis()
+                
+                val newFpsMap = mutableMapOf<Int, Int>()
+                activePlayers.forEach { (slotIndex, player) ->
+                    val totalFrames = (player as? ExoPlayer)?.videoDecoderCounters?.renderedOutputBufferCount?.toLong() ?: 0L
+                    val lastFrames = lastRenderedFrameCounts[slotIndex] ?: 0L
+                    val diff = (totalFrames - lastFrames).toInt().coerceAtLeast(0)
+                    newFpsMap[slotIndex] = diff
+                    lastRenderedFrameCounts[slotIndex] = totalFrames
                 }
-            } else {
-                _uiState.update { it.copy(snackbarMessage = "Lỗi khi đổi FPS: $response") }
-                val activeCam = _uiState.value.cameras.getOrNull(slotIndex)
-                if (activeCam != null) {
-                    preparePlayer(slotIndex, activeCam, _uiState.value.useTcp)
+                
+                _uiState.update { current ->
+                    current.copy(realtimeFps = newFpsMap)
+                }
+                
+                if (currentTime % 2000 < 1000) {
+                    activePlayers.forEach { (slotIndex, player) ->
+                        val mode = currentUiState.qualityModes[slotIndex] ?: QualityMode.AUTO
+                        if (mode == QualityMode.AUTO) {
+                            val exoPlayer = player as? ExoPlayer ?: return@forEach
+                            val bufferMs = exoPlayer.bufferedPosition - exoPlayer.currentPosition
+                            val isPlaying = exoPlayer.playbackState == Player.STATE_READY && exoPlayer.playWhenReady
+                            
+                            if (isPlaying) {
+                                val cam = currentUiState.cameras.getOrNull(slotIndex) ?: return@forEach
+                                val currentBitrate = getCurrentBitrateFor(slotIndex)
+                                val cooldownExpired = currentTime > (abrCooldowns[slotIndex] ?: 0L)
+                                
+                                if (bufferMs < 1000) {
+                                    highBufferAccumulator[slotIndex] = 0
+                                    val currentLowCount = (lowBufferAccumulator[slotIndex] ?: 0) + 1
+                                    lowBufferAccumulator[slotIndex] = currentLowCount
+                                    
+                                    if (cooldownExpired || bufferMs < 500) {
+                                        val targetBitrate = getLowerBitrate(currentBitrate)
+                                        if (targetBitrate != currentBitrate) {
+                                            AppLog.i("ABR [Slot $slotIndex]: Buffer low ($bufferMs ms). Downgrading bitrate to $targetBitrate bps")
+                                            viewModelScope.launch {
+                                                val res = controlClient.setBitrate(cam.host, targetBitrate, cam.pinCode)
+                                                if (res == "OK") {
+                                                    setCurrentBitrateFor(slotIndex, targetBitrate)
+                                                    abrCooldowns[slotIndex] = currentTime + 8000L
+                                                    lowBufferAccumulator[slotIndex] = 0
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if (bufferMs > 3500) {
+                                    lowBufferAccumulator[slotIndex] = 0
+                                    val currentHighCount = (highBufferAccumulator[slotIndex] ?: 0) + 1
+                                    highBufferAccumulator[slotIndex] = currentHighCount
+                                    
+                                    if (cooldownExpired && currentHighCount >= 2) {
+                                        val targetBitrate = getHigherBitrate(currentBitrate)
+                                        if (targetBitrate != currentBitrate) {
+                                            AppLog.i("ABR [Slot $slotIndex]: Buffer high ($bufferMs ms). Upgrading bitrate to $targetBitrate bps")
+                                            viewModelScope.launch {
+                                                val res = controlClient.setBitrate(cam.host, targetBitrate, cam.pinCode)
+                                                if (res == "OK") {
+                                                    setCurrentBitrateFor(slotIndex, targetBitrate)
+                                                    abrCooldowns[slotIndex] = currentTime + 8000L
+                                                    highBufferAccumulator[slotIndex] = 0
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    lowBufferAccumulator[slotIndex] = 0
+                                    highBufferAccumulator[slotIndex] = 0
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
